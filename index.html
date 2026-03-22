@@ -20,6 +20,11 @@ canvas{display:block;touch-action:none}
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="cs-btns" style="position:fixed;bottom:0;left:0;right:0;height:70px;display:none;z-index:200;pointer-events:none">
+  <button id="cs-l" style="position:absolute;left:8px;bottom:8px;width:80px;height:54px;border:2px solid rgba(255,255,255,.4);border-radius:10px;background:rgba(0,0,50,.7);color:#fff;font-size:26px;pointer-events:all;touch-action:none">◀</button>
+  <button id="cs-ok" style="position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:160px;height:54px;border:2px solid rgba(100,200,255,.6);border-radius:10px;background:rgba(0,20,60,.8);color:#fff;font-size:14px;font-weight:bold;pointer-events:all;touch-action:none">CONFIRMER ✓</button>
+  <button id="cs-r" style="position:absolute;right:8px;bottom:8px;width:80px;height:54px;border:2px solid rgba(255,255,255,.4);border-radius:10px;background:rgba(0,0,50,.7);color:#fff;font-size:26px;pointer-events:all;touch-action:none">▶</button>
+</div>
 <div id="tc">
   <div id="dpad" style="position:absolute;left:12px;bottom:12px;width:148px;height:148px">
     <button class="tb" id="tl" style="left:0;top:49px;width:50px;height:50px">◀</button>
@@ -57,6 +62,13 @@ window.addEventListener('load',()=>{
   }
   tbind('tl','left');tbind('tr','right');tbind('tu','up');tbind('td','down');
   tbind('tatk','atk');tbind('tsp2','sp2');tbind('tsp3','sp3');tbind('tsup','sup');
+  // Char select buttons
+  const _csl=document.getElementById('cs-l');
+  const _csr=document.getElementById('cs-r');
+  const _csok=document.getElementById('cs-ok');
+  if(_csl){_csl.addEventListener('touchstart',e=>{e.preventDefault();window._game&&(window._game._selBtn='L',window._game._selCd=0)},{passive:false});_csl.addEventListener('click',()=>{window._game&&(window._game._selBtn='L',window._game._selCd=0)})}
+  if(_csr){_csr.addEventListener('touchstart',e=>{e.preventDefault();window._game&&(window._game._selBtn='R',window._game._selCd=0)},{passive:false});_csr.addEventListener('click',()=>{window._game&&(window._game._selBtn='R',window._game._selCd=0)})}
+  if(_csok){_csok.addEventListener('touchstart',e=>{e.preventDefault();window._game&&(window._game._selBtn='A',window._game._selCd=0)},{passive:false});_csok.addEventListener('click',()=>{window._game&&(window._game._selBtn='A',window._game._selCd=0)})}
 });
 
 // ── States ─────────────────────────────────────────────────
@@ -694,12 +706,10 @@ class Game{
         const rect=cv.getBoundingClientRect();
         const t=e.touches[0];
         const tx=(t.clientX-rect.left)/sc,ty=(t.clientY-rect.top)/sc;
-        // Flèche gauche zone
-        if(tx<200) this._selBtn='L';
-        // Flèche droite zone
-        else if(tx>W-200) this._selBtn='R';
-        // Bouton confirmer bas
-        else if(ty>H-70) this._selBtn='A';
+        if(tx<200){this._selBtn='L';this._selCd=0}
+        else if(tx>W-200){this._selBtn='R';this._selCd=0}
+        else if(ty>H-70){this._selBtn='A';this._selCd=0}
+        else{this._selBtn='A';this._selCd=0} // tap centre = confirmer
         e.preventDefault();
       }
     },{passive:false});
@@ -724,6 +734,8 @@ class Game{
   _loop(ts){
     requestAnimationFrame(ts2=>this._loop(ts2));
     this.T=ts/1000;this.sfx.tick();this.stage.tick();this.mim.flush();
+    const _csb=document.getElementById('cs-btns');
+    if(_csb)_csb.style.display=this.state==='CHARSEL'?'block':'none';
     if(!this.sfx.frozen)this._update();
     this._draw();
   }
@@ -741,22 +753,23 @@ class Game{
   }
   _charSelUpdate(){
     const im=this.mim;
-    // Cooldown pour eviter double input
     if(!this._selCd)this._selCd=0;
-    this._selCd--;
-    const left =this._selCd<=0&&(im.pk(KB.l)||im.pk('GL')||this._selBtn==='L');
-    const right=this._selCd<=0&&(im.pk(KB.r)||im.pk('GR')||this._selBtn==='R');
-    const atk  =im.pk(KB.a)||im.pk('GA')||this._selBtn==='A';
+    this._selCd=Math.max(0,this._selCd-1);
+    const canNav=this._selCd===0;
+    const left =canNav&&(im.pk(KB.l)||im.pk('GL')||this._selBtn==='L');
+    const right=canNav&&(im.pk(KB.r)||im.pk('GR')||this._selBtn==='R');
+    const atk  =im.pk(KB.a)||im.pk('GA')||TC.atk||this._selBtn==='A';
+    const btn=this._selBtn;
     this._selBtn=null;TC.left=TC.right=TC.atk=false;
-    if(left||right){this._selCd=12}
+    if(left||right) this._selCd=15;
     if(this.curSel===0){
       if(left) this.p1sel=(this.p1sel-1+this.chars.length)%this.chars.length;
       if(right)this.p1sel=(this.p1sel+1)%this.chars.length;
-      if(atk)  this.curSel=1;
+      if(atk)  {this.curSel=1;this._selCd=20}
     } else {
       if(left) this.p2sel=(this.p2sel-1+this.chars.length)%this.chars.length;
       if(right)this.p2sel=(this.p2sel+1)%this.chars.length;
-      if(atk){this._build();this._reset();this.state='INTRO';this.introF=160;this.curSel=0}
+      if(atk)  {this._build();this._reset();this.state='INTRO';this.introF=160;this.curSel=0}
     }
   }
   _fight(){
@@ -938,7 +951,7 @@ class Game{
   }
 }
 window.addEventListener('load',()=>{
-  new Game();
+  window._game=new Game();
   const goFS=()=>{const el=document.documentElement,r=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen;if(r)r.call(el).catch(()=>{})};
   document.addEventListener('touchstart',goFS,{once:true});document.addEventListener('click',goFS,{once:true});
 });
