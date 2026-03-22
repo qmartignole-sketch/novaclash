@@ -94,6 +94,34 @@ canvas{display:block;image-rendering:pixelated;touch-action:none}
   <div id="mm-found" style="display:none;color:#22ff88;font-size:16px;font-family:Impact;letter-spacing:2px"></div>
   <button id="mm-cancel" style="margin-top:20px;padding:10px 24px;border-radius:8px;border:1px solid #ff444466;background:rgba(20,0,0,.8);color:#ff6666;font-family:'Courier New';font-size:12px;cursor:pointer">ANNULER</button>
 </div>
+<div id="multi-charsel" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#030010,#05001a);z-index:1000;font-family:'Courier New',monospace;overflow-y:auto">
+  <div style="text-align:center;padding:20px 0 8px">
+    <div id="mcs-title" style="font-family:Impact,sans-serif;font-size:26px;color:#22ff88;text-shadow:0 0 16px #22ff88;letter-spacing:2px">CHOISIS TON PERSONNAGE</div>
+    <div id="mcs-role" style="color:#666;font-size:11px;letter-spacing:3px;margin-top:4px"></div>
+  </div>
+  <div id="mcs-cards" style="display:flex;flex-wrap:wrap;justify-content:center;gap:14px;padding:12px 14px 20px"></div>
+</div>
+<div id="multi-wait" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#030010,#05001a);z-index:1000;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;text-align:center">
+  <div style="font-family:Impact;font-size:26px;color:#22ff88;text-shadow:0 0 16px #22ff88;margin-bottom:12px">EN ATTENTE...</div>
+  <div id="mw-status" style="color:#aaa;font-size:13px;margin-bottom:28px">L adversaire choisit son personnage</div>
+  <div style="width:50px;height:50px;border:3px solid #22ff8822;border-top-color:#22ff88;border-radius:50%;animation:mw-spin 1s linear infinite;margin-bottom:28px"></div>
+  <div id="mw-vs" style="display:flex;gap:32px;align-items:center"></div>
+  <style>@keyframes mw-spin{to{transform:rotate(360deg)}}</style>
+</div>
+<div id="multi-charsel" style="display:none;position:fixed;inset:0;background:#020010;z-index:996;flex-direction:column;align-items:center;padding:20px;overflow-y:auto;font-family:'Courier New',monospace">
+  <div style="font-family:Impact,sans-serif;font-size:26px;color:#22ff88;text-shadow:0 0 14px #22ff88;text-align:center;margin-bottom:4px">🌐 MULTIJOUEUR</div>
+  <div id="mcs-title" style="color:#aaa;font-size:13px;text-align:center;margin-bottom:18px">Choisis ton personnage</div>
+  <div id="mcs-cards" style="display:flex;flex-wrap:wrap;justify-content:center;gap:14px;width:100%;max-width:540px"></div>
+</div>
+<div id="mp-vs" style="display:none;position:fixed;inset:0;background:#020010;z-index:995;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;text-align:center">
+  <div style="font-family:Impact,sans-serif;font-size:22px;color:#aaa;margin-bottom:20px">ADVERSAIRES</div>
+  <div style="display:flex;align-items:center;gap:32px;margin-bottom:28px">
+    <div id="mpvs-p1" style="text-align:center"></div>
+    <div style="font-family:Impact;font-size:48px;color:#22ff88;text-shadow:0 0 20px #22ff88">VS</div>
+    <div id="mpvs-p2" style="text-align:center"></div>
+  </div>
+  <div id="mpvs-status" style="color:#666;font-size:13px">En attente...</div>
+</div>
 <canvas id="c"></canvas>
 <div id="tc" style="position:fixed;bottom:0;left:0;right:0;height:180px;pointer-events:none;z-index:100;display:none">
   <!-- Gauche -->
@@ -247,7 +275,12 @@ function _onRemoteData(data){
   if(data.type==='charsel'){
     _mp.oppChar=data.char;
     _mp.remoteReady=true;
-    if(_mp.localReady) _launchMulti();
+    if(_mp.localReady){
+      _launchMulti();
+    } else {
+      // Update VS display if we're still on wait screen
+      _updateWaitVS&&_updateWaitVS();
+    }
   }
   if(data.type==='input'){
     _mp.remoteInput=data.inp;
@@ -264,77 +297,89 @@ function _onDisconnect(){
 
 function _startMultiGame(){
   if(!window._game)return;
-  const g=window._game;
-  g._multiMode=true;
+  window._game._multiMode=true;
   _mp.localReady=false;_mp.remoteReady=false;
-  // Show char select - _showCS will detect _multiMode
-  g._showCS(0);
+  _mp.myChar=0;
+  _showMultiCharSel();
 }
 
-function _showWaitingForOpponent(){
-  let el=document.getElementById('mp-waiting');
-  if(!el){
-    el=document.createElement('div');
-    el.id='mp-waiting';
-    el.style.cssText='display:none;position:fixed;inset:0;background:linear-gradient(160deg,#020010,#04001a);z-index:998;flex-direction:column;align-items:center;justify-content:center;font-family:"Courier New",monospace;text-align:center';
-    el.innerHTML='<div style="font-family:Impact,sans-serif;font-size:28px;color:#22ff88;text-shadow:0 0 18px #22ff88;margin-bottom:16px">PERSONNAGE CHOISI ✓</div>'
-      +'<div id="mp-wait-status" style="color:#aaa;font-size:14px;margin-bottom:32px">En attente de l adversaire...</div>'
-      +'<div style="width:60px;height:60px;border:4px solid #22ff8833;border-top-color:#22ff88;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:28px" id="mp-spinner"></div>'
-      +'<div id="mp-wait-chars" style="display:flex;gap:24px;margin-top:8px"></div>'
-      +'<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
-    document.body.appendChild(el);
-  }
-  el.style.display='flex';
+function _showMultiCharSel(){
+  // Show dedicated multi charsel overlay
+  document.getElementById('multi-charsel').style.display='block';
+  document.getElementById('multi-wait').style.display='none';
+  const role=document.getElementById('mcs-role');
+  if(role)role.textContent=_mp.isHost?'TU JOUES EN BLEU (P1)':'TU JOUES EN ROUGE (P2)';
+  const cards=document.getElementById('mcs-cards');
+  if(!cards)return;
+  cards.innerHTML='';
+  Object.entries(CHARS).forEach(([cn,C],i)=>{
+    const div=document.createElement('div');
+    div.style.cssText='width:148px;border-radius:12px;border:2px solid '+C.col+';background:rgba(6,0,24,.97);color:#fff;display:flex;flex-direction:column;align-items:center;padding:14px 10px 12px;box-sizing:border-box;cursor:pointer';
+    div.innerHTML='<div style="font-family:Impact;font-size:22px;color:'+C.col+';text-shadow:0 0 8px '+C.glow+';margin-bottom:4px">'+C.name+'</div>'
+      +'<div style="font-size:9px;color:'+C.glow+';margin-bottom:8px;text-align:center">'+C.sub+'</div>'
+      +'<div style="font-size:9px;color:#aaa;text-align:left;line-height:1.7;width:100%;margin-bottom:8px">'+(C.desc||[]).map(d=>'<div>• '+d+'</div>').join('')+'</div>'
+      +'<div style="font-size:9px;color:#444;margin-bottom:10px">HP: '+C.hp+'</div>'
+      +'<button style="width:100%;padding:10px 0;border-radius:20px;border:none;background:'+C.col+';color:#000;font-family:Impact;font-size:14px;cursor:pointer;letter-spacing:1px">CHOISIR</button>';
+    div.querySelector('button').onclick=()=>{
+      _mp.myChar=i;
+      // Send choice to opponent
+      if(_mp.conn)_mp.conn.send({type:'charsel',char:i});
+      _mp.localReady=true;
+      // Switch to waiting screen
+      document.getElementById('multi-charsel').style.display='none';
+      document.getElementById('multi-wait').style.display='flex';
+      // Update VS display
+      _updateWaitVS();
+      // If opponent already chose, launch
+      if(_mp.remoteReady)_launchMulti();
+    };
+    cards.appendChild(div);
+  });
+}
+
+function _updateWaitVS(){
   const ckeys=Object.keys(CHARS);
   const mine=CHARS[ckeys[_mp.myChar]||ckeys[0]];
-  const waitChars=document.getElementById('mp-wait-chars');
-  if(waitChars&&mine){
-    waitChars.innerHTML='<div style="text-align:center"><div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">TOI</div><div style="font-family:Impact;font-size:22px;color:'+mine.col+';text-shadow:0 0 10px '+mine.glow+'">'+mine.name+'</div></div>'
-      +'<div style="font-size:28px;color:#333;align-self:center">VS</div>'
-      +'<div style="text-align:center"><div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">ADVERSAIRE</div><div style="font-family:Impact;font-size:22px;color:#666">???</div></div>';
-  }
+  const vs=document.getElementById('mw-vs');
+  if(!vs||!mine)return;
+  vs.innerHTML='<div style="text-align:center"><div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">TOI</div><div style="font-family:Impact;font-size:20px;color:'+mine.col+';text-shadow:0 0 8px '+mine.glow+'">'+mine.name+'</div></div>'
+    +'<div style="font-size:26px;color:#333">VS</div>'
+    +'<div style="text-align:center" id="mw-opp"><div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">ADVERSAIRE</div><div style="font-family:Impact;font-size:20px;color:#444">???</div></div>';
 }
+
 function _hideWaitingForOpponent(){
-  const el=document.getElementById('mp-waiting');
-  if(el)el.style.display='none';
+  document.getElementById('multi-wait').style.display='none';
+  document.getElementById('multi-charsel').style.display='none';
 }
 
 function _launchMulti(){
   const g=window._game;if(!g)return;
   const ckeys=Object.keys(CHARS);
   const host=_mp.isHost;
-  const p1char=host?ckeys[_mp.myChar]:ckeys[_mp.oppChar];
-  const p2char=host?ckeys[_mp.oppChar]:ckeys[_mp.myChar];
-  // Update waiting screen to show opponent char
-  const waitChars=document.getElementById('mp-wait-chars');
-  const opp=CHARS[host?ckeys[_mp.oppChar]:ckeys[_mp.myChar]];
-  if(waitChars&&opp){
-    waitChars.innerHTML=`
-      <div style="text-align:center">
-        <div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">TOI</div>
-        <div style="font-family:Impact;font-size:22px;color:${CHARS[host?ckeys[_mp.myChar]:ckeys[_mp.oppChar]].col}">${CHARS[host?ckeys[_mp.myChar]:ckeys[_mp.oppChar]].name}</div>
-      </div>
-      <div style="font-size:28px;color:#22ff88;align-self:center">VS</div>
-      <div style="text-align:center">
-        <div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">ADVERSAIRE</div>
-        <div style="font-family:Impact;font-size:22px;color:${opp.col};text-shadow:0 0 10px ${opp.glow}">${opp.name}</div>
-      </div>`;
-    // Update status text
-    const status=document.querySelector('#mp-waiting div:nth-child(2)');
-    if(status)status.textContent='Adversaire prêt ! Lancement...';
-    // Remove spinner
-    const spinner=document.querySelector('#mp-waiting div:nth-child(3)');
-    if(spinner)spinner.style.display='none';
+  const myChar=ckeys[_mp.myChar]||ckeys[0];
+  const oppChar=ckeys[_mp.oppChar]||ckeys[1];
+  const p1char=host?myChar:oppChar;
+  const p2char=host?oppChar:myChar;
+  // Show opponent in VS screen
+  const opp=CHARS[host?oppChar:myChar];
+  const mine=CHARS[host?myChar:oppChar];
+  const vs=document.getElementById('mw-vs');
+  if(vs&&opp){
+    vs.innerHTML='<div style="text-align:center"><div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">TOI</div><div style="font-family:Impact;font-size:20px;color:'+mine.col+';text-shadow:0 0 8px '+mine.glow+'">'+mine.name+'</div></div>'
+      +'<div style="font-size:26px;color:#22ff88">VS</div>'
+      +'<div style="text-align:center"><div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">ADVERSAIRE</div><div style="font-family:Impact;font-size:20px;color:'+opp.col+';text-shadow:0 0 8px '+opp.glow+'">'+opp.name+'</div></div>';
   }
-  // Launch after brief VS display
+  const status=document.getElementById('mw-status');
+  if(status)status.textContent='Adversaire pret ! Lancement...';
+  const spinner=document.querySelector('#multi-wait div[style*="spin"]');
+  if(spinner)spinner.style.display='none';
+  // Launch after showing VS
   setTimeout(()=>{
     _hideWaitingForOpponent();
-    const overlay=document.getElementById('matchmaking');if(overlay)overlay.style.display='none';
-    const charsel=document.getElementById('charsel');if(charsel)charsel.style.display='none';
     g._buildWith(p1char,p2char);g._reset();
     g._multiMode=true;g._multiIsHost=host;
     g.state='INTRO';g.introF=160;
-  },1500);
+  },1600);
 }
 
 function _cancelMatchmaking(){
@@ -1699,7 +1744,12 @@ function _onRemoteData(data){
   if(data.type==='charsel'){
     _mp.oppChar=data.char;
     _mp.remoteReady=true;
-    if(_mp.localReady) _launchMulti();
+    if(_mp.localReady){
+      _launchMulti();
+    } else {
+      // Update VS display if we're still on wait screen
+      _updateWaitVS&&_updateWaitVS();
+    }
   }
   if(data.type==='input'){
     _mp.remoteInput=data.inp;
@@ -1716,11 +1766,72 @@ function _onDisconnect(){
 
 function _startMultiGame(){
   if(!window._game)return;
-  const g=window._game;
-  g._multiMode=true;
+  window._game._multiMode=true;
   _mp.localReady=false;_mp.remoteReady=false;
-  // Show char select - _showCS will detect _multiMode
-  g._showCS(0);
+  // Hide everything else
+  ['matchmaking','charsel','mp-waiting','mainmenu'].forEach(id=>{
+    const e=document.getElementById(id);if(e)e.style.display='none';
+  });
+  _showMultiCharsel();
+}
+
+function _showMultiCharsel(){
+  const el=document.getElementById('multi-charsel');
+  if(!el)return;
+  el.style.display='flex';
+  const title=document.getElementById('mcs-title');
+  const cards=document.getElementById('mcs-cards');
+  if(title)title.textContent=_mp.isHost?'Tu joues P1 — Choisis ton personnage':'Tu joues P2 — Choisis ton personnage';
+  if(!cards)return;
+  cards.innerHTML='';
+  const ckeys=Object.keys(CHARS);
+  ckeys.forEach((cn,i)=>{
+    const C=CHARS[cn];
+    const div=document.createElement('div');
+    div.style.cssText='width:150px;border-radius:12px;border:2px solid '+C.col+';background:rgba(6,0,24,.97);color:#fff;display:flex;flex-direction:column;align-items:center;padding:14px 10px 12px;box-sizing:border-box;cursor:pointer';
+    div.innerHTML='<div style="font-family:Impact;font-size:22px;color:'+C.col+';text-shadow:0 0 8px '+C.glow+';margin-bottom:4px">'+C.name+'</div>'
+      +'<div style="font-size:9px;color:'+C.glow+';margin-bottom:8px;text-align:center">'+C.sub+'</div>'
+      +'<div style="font-size:9px;color:#aaa;text-align:left;line-height:1.7;width:100%;margin-bottom:8px">'+((C.desc||[]).slice(0,3).map(d=>'<div>• '+d+'</div>').join(''))+'</div>'
+      +'<div style="font-size:9px;color:#555;margin-bottom:10px">HP: '+C.hp+'</div>'
+      +'<button style="width:100%;padding:10px 0;border-radius:20px;border:none;background:'+C.col+';color:#000;font-family:Impact;font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent">CHOISIR</button>';
+    div.querySelector('button').addEventListener('click',()=>_multiPickChar(i));
+    cards.appendChild(div);
+  });
+}
+
+function _multiPickChar(idx){
+  _mp.myChar=idx;
+  _mp.localReady=true;
+  // Send pick to opponent
+  if(_mp.conn)_mp.conn.send({type:'charsel',char:idx});
+  // Hide charsel, show VS screen in waiting state
+  const el=document.getElementById('multi-charsel');if(el)el.style.display='none';
+  _showMpVs();
+  // If opponent already picked, launch
+  if(_mp.remoteReady)_launchMulti();
+}
+
+function _showMpVs(){
+  const el=document.getElementById('mp-vs');if(!el)return;
+  el.style.display='flex';
+  const ckeys=Object.keys(CHARS);
+  const myC=CHARS[ckeys[_mp.myChar]];
+  // My card
+  const p1el=document.getElementById(_mp.isHost?'mpvs-p1':'mpvs-p2');
+  const p2el=document.getElementById(_mp.isHost?'mpvs-p2':'mpvs-p1');
+  if(p1el)p1el.innerHTML='<div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">TOI</div><div style="font-family:Impact;font-size:26px;color:'+myC.col+';text-shadow:0 0 12px '+myC.glow+'">'+myC.name+'</div>';
+  if(p2el)p2el.innerHTML='<div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">ADVERSAIRE</div><div style="font-family:Impact;font-size:26px;color:#444">???</div>';
+  const st=document.getElementById('mpvs-status');
+  if(st)st.textContent='En attente du choix adverse...';
+}
+
+function _updateMpVsOpp(){
+  const ckeys=Object.keys(CHARS);
+  const oppC=CHARS[ckeys[_mp.oppChar]];
+  const p2el=document.getElementById(_mp.isHost?'mpvs-p2':'mpvs-p1');
+  if(p2el&&oppC)p2el.innerHTML='<div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">ADVERSAIRE</div><div style="font-family:Impact;font-size:26px;color:'+oppC.col+';text-shadow:0 0 12px '+oppC.glow+'">'+oppC.name+'</div>';
+  const st=document.getElementById('mpvs-status');
+  if(st)st.textContent='Lancement dans 2 secondes...';
 }
 
 function _showWaitingForOpponent(){
@@ -1741,7 +1852,8 @@ function _launchMulti(){
   const host=_mp.isHost;
   const p1char=host?ckeys[_mp.myChar]:ckeys[_mp.oppChar];
   const p2char=host?ckeys[_mp.oppChar]:ckeys[_mp.myChar];
-  // Update waiting screen to show opponent char
+  _updateMpVsOpp();
+  // Launch after brief VS display
   const waitChars=document.getElementById('mp-wait-chars');
   const opp=CHARS[host?ckeys[_mp.oppChar]:ckeys[_mp.myChar]];
   if(waitChars&&opp){
@@ -1764,13 +1876,13 @@ function _launchMulti(){
   }
   // Launch after brief VS display
   setTimeout(()=>{
-    _hideWaitingForOpponent();
-    const overlay=document.getElementById('matchmaking');if(overlay)overlay.style.display='none';
-    const charsel=document.getElementById('charsel');if(charsel)charsel.style.display='none';
+    ['matchmaking','charsel','mp-waiting','multi-charsel','mp-vs','mainmenu'].forEach(id=>{
+      const e=document.getElementById(id);if(e)e.style.display='none';
+    });
     g._buildWith(p1char,p2char);g._reset();
     g._multiMode=true;g._multiIsHost=host;
     g.state='INTRO';g.introF=160;
-  },1500);
+  },2000);
 }
 
 function _cancelMatchmaking(){
