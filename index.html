@@ -14,8 +14,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#000;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow:hidden;font-family:'Courier New',monospace}
-canvas{display:block;image-rendering:pixelated}
+html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:'Courier New',monospace}
+body{display:flex;justify-content:center;align-items:center}
+canvas{display:block;image-rendering:pixelated;touch-action:none}
 </style>
 </head>
 <body>
@@ -932,14 +933,21 @@ class Game{
   constructor(){
     const cv=document.getElementById('c');
     cv.width=W;cv.height=H;
+    // Touch pour démarrer
+    cv.addEventListener('touchstart',e=>{this._touchStart=true},{passive:true});
     // Pointer Lock — capture le curseur pour liberer le stick
     const _lock=()=>{cv.requestPointerLock=cv.requestPointerLock||cv.mozRequestPointerLock||cv.webkitRequestPointerLock;if(cv.requestPointerLock)cv.requestPointerLock()};
     cv.addEventListener('click',_lock);
     window.addEventListener('gamepadconnected',_lock);
     // Re-capturer si on perd le lock (seulement sur clic)
     document.addEventListener('pointerlockchange',()=>{});
-    const sc=Math.min(window.innerWidth/W,window.innerHeight/H);
-    cv.style.width=W*sc+'px';cv.style.height=H*sc+'px';
+    const _resize=()=>{
+      const sc=Math.min(window.innerWidth/W,window.innerHeight/H);
+      cv.style.width=W*sc+'px';cv.style.height=H*sc+'px';
+    };
+    _resize();
+    window.addEventListener('resize',_resize);
+    window.addEventListener('orientationchange',()=>setTimeout(_resize,300));
     this.ctx=cv.getContext('2d');
     this.pts=new Pts();this.sfx=new SFX();this.stage=new Stage();this.ui=new UI();
     this.mim=new Input();
@@ -968,11 +976,11 @@ class Game{
   }
   _update(){
     switch(this.state){
-      case 'MENU':if(this.mim.p.size>0||this.mim.pk('GP_START')||this.mim.pk('GP_ATK')||this.mim.pk('GP_JUMP')){this.state='INTRO';this.introF=160;this._reset()}break;
+      case 'MENU':if(this.mim.p.size>0||this.mim.pk('GP_START')||this.mim.pk('GP_ATK')||this.mim.pk('GP_JUMP')||this._touchStart){this._touchStart=false;this.state='INTRO';this.introF=160;this._reset()}break;
       case 'INTRO':if(--this.introF<=0){this.state='FIGHT';this.ann('FIGHT !','#ffe020',55)}break;
       case 'FIGHT':this._fight();break;
       case 'RE':if(--this.reF<=0){if(this.p1w>=Math.ceil(this.mr/2)||this.p2w>=Math.ceil(this.mr/2)){this.state='ME'}else{this.round++;this.state='INTRO';this.introF=130;this._reset()}}break;
-      case 'ME':if(this.mim.p.size>0||this.mim.pk('GP_START')||this.mim.pk('GP_ATK')||this.mim.pk('GP_JUMP')){this.round=1;this.p1w=0;this.p2w=0;this._build();this.state='INTRO';this.introF=140;this._reset()}break;
+      case 'ME':if(this.mim.p.size>0||this.mim.pk('GP_START')||this.mim.pk('GP_ATK')||this.mim.pk('GP_JUMP')||this._touchStart){this._touchStart=false;this.round=1;this.p1w=0;this.p2w=0;this._build();this.state='INTRO';this.introF=140;this._reset()}break;
     }
   }
   _fight(){
