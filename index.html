@@ -12,6 +12,50 @@ canvas{display:block;image-rendering:pixelated}
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="tc" style="position:fixed;bottom:0;left:0;right:0;height:180px;pointer-events:none;z-index:100;display:none">
+  <!-- Gauche -->
+  <div style="position:absolute;left:10px;bottom:10px;pointer-events:all">
+    <div style="position:relative;width:140px;height:140px">
+      <button class="tb" id="tl" style="position:absolute;left:0;top:50px;width:50px;height:50px">◀</button>
+      <button class="tb" id="tr" style="position:absolute;right:0;top:50px;width:50px;height:50px">▶</button>
+      <button class="tb" id="tu" style="position:absolute;left:45px;top:0;width:50px;height:50px">▲</button>
+      <button class="tb" id="td" style="position:absolute;left:45px;bottom:0;width:50px;height:50px">▼</button>
+    </div>
+  </div>
+  <!-- Droite -->
+  <div style="position:absolute;right:10px;bottom:10px;pointer-events:all">
+    <div style="position:relative;width:200px;height:140px">
+      <button class="tb" id="tatk" style="position:absolute;right:0;top:45px;width:60px;height:60px;background:rgba(220,80,80,.7)">ATK</button>
+      <button class="tb" id="tjmp" style="position:absolute;right:70px;bottom:0;width:55px;height:55px;background:rgba(80,180,80,.7)">SAUT</button>
+      <button class="tb" id="tsp2" style="position:absolute;right:70px;top:0;width:55px;height:55px;background:rgba(80,80,220,.7)">SP2</button>
+      <button class="tb" id="tsp3" style="position:absolute;right:135px;top:45px;width:55px;height:55px;background:rgba(200,150,0,.7)">SP3</button>
+      <button class="tb" id="tsup" style="position:absolute;right:145px;top:0;width:45px;height:35px;background:rgba(220,200,0,.7);font-size:11px">SUP</button>
+    </div>
+  </div>
+</div>
+<style>
+.tb{border:2px solid rgba(255,255,255,.5);border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:16px;font-weight:bold;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none}
+.tb:active{background:rgba(255,255,255,.3)}
+</style>
+<script>
+// Touch controls
+const _touch={left:false,right:false,up:false,down:false,atk:false,jmp:false,sp2:false,sp3:false,sup:false};
+function _tbind(id,key){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.addEventListener('touchstart',e=>{e.preventDefault();_touch[key]=true},{passive:false});
+  el.addEventListener('touchend',  e=>{e.preventDefault();_touch[key]=false},{passive:false});
+  el.addEventListener('mousedown', e=>{_touch[key]=true});
+  el.addEventListener('mouseup',   e=>{_touch[key]=false});
+}
+window.addEventListener('load',()=>{
+  const tc=document.getElementById('tc');
+  // Show on touch device
+  if('ontouchstart' in window||navigator.maxTouchPoints>0) tc.style.display='block';
+  _tbind('tl','left');_tbind('tr','right');_tbind('tu','up');_tbind('td','down');
+  _tbind('tatk','atk');_tbind('tjmp','jmp');_tbind('tsp2','sp2');_tbind('tsp3','sp3');_tbind('tsup','sup');
+});
+</script>
 <script>
 'use strict';
 const W=960,H=540,FLOOR=430,SL=70,SR=890,G=0.62,JV=-16,WF=4.8,WB=3.8;
@@ -22,24 +66,61 @@ const S={IDLE:'I',WF:'WF',WB:'WB',CR:'CR',JU:'JU',JF:'JF',JB:'JB',
   SP1:'S1',SP2:'S2',SP3:'S3',SUP:'SU',
   BH:'BH',BL:'BL',HIT:'HT',KD:'KD',GU:'GU',KO:'KO'};
 
-// ── Input ────────────────────────────────────────────────────
+// ── Input (clavier + manette DualSense) ─────────────────────
+const _gpStore={pad:null};
+window.addEventListener('gamepadconnected',   e=>{_gpStore.pad=e.gamepad;console.log('GP:',e.gamepad.id)});
+window.addEventListener('gamepaddisconnected',e=>{_gpStore.pad=null});
+
 class Input{
-  constructor(){this.h=new Set();this.p=new Set();this._b=new Set();
+  constructor(){
+    this.h=new Set();this.p=new Set();this._b=new Set();
+    this._gpPrev={};
     window.addEventListener('keydown',e=>{if(!this.h.has(e.code))this._b.add(e.code);this.h.add(e.code);e.preventDefault()});
     window.addEventListener('keyup',e=>this.h.delete(e.code));
   }
-  flush(){this.p=new Set(this._b);this._b.clear()}
+  _gp(){
+    // Polling direct avec try/catch — fonctionne sur GitHub Pages et PS5
+    try{
+      const gps=navigator.getGamepads?navigator.getGamepads():[];
+      for(const g of gps) if(g){if(!_gpStore.pad)_gpStore.pad=g;return g;}
+    }catch(e){}
+    return null;
+  }
+  flush(){
+    this.p=new Set(this._b);this._b.clear();
+    const g=this._gp();if(!g)return;
+    const map={
+      'GP_LEFT': !!g.buttons[14]?.pressed,
+      'GP_RIGHT':!!g.buttons[15]?.pressed,
+      'GP_UP':   !!g.buttons[12]?.pressed,
+      'GP_DOWN': !!g.buttons[13]?.pressed,
+      'GP_ATK':  !!g.buttons[1]?.pressed,  // Rond
+      'GP_JUMP': !!g.buttons[0]?.pressed,  // Croix
+      'GP_SP2':  !!g.buttons[5]?.pressed,  // R1
+      'GP_SP3':  !!g.buttons[3]?.pressed,  // Triangle
+      'GP_SUP':  !!g.buttons[7]?.pressed,  // R2
+      'GP_START':!!g.buttons[9]?.pressed,  // Options
+    };
+    for(const[k,v] of Object.entries(map)){
+      if(v&&!this._gpPrev[k]){this._b.add(k);this.h.add(k)}
+      else if(!v){this.h.delete(k)}
+    }
+    this._gpPrev={...map};
+  }
   hk(k){return this.h.has(k)} pk(k){return this.p.has(k)}
+  get hasGamepad(){return !!this._gp()}
 }
 // AZERTY keys
-const KB={left:'KeyQ',right:'KeyD',up:'KeyZ',down:'KeyS',lp:'KeyA',mp:'KeyE',hp:'KeyR'};
+const KB={left:'KeyQ',right:'KeyD',up:'KeyZ',down:'KeyS',atk:'KeyR'};
+// Gamepad virtual keys
+const GP={left:'GP_LEFT',right:'GP_RIGHT',up:'GP_UP',down:'GP_DOWN',atk:'GP_ATK',jump:'GP_JUMP',sp2:'GP_SP2',sp3:'GP_SP3',sup:'GP_SUP',start:'GP_START'};
 
 // Simple combo buffer: detect near-simultaneous presses for specials
 class SpecialBuf{
   constructor(im){this.im=im;this.buf=[];this.f=0}
   tick(){
     this.f++;
-    const keys=['KeyZ','KeyS','KeyA','KeyE','KeyR'];
+    const keys=['KeyZ','KeyS','KeyR','GP_UP','GP_DOWN','GP_ATK'];
     for(const k of keys) if(this.im.pk(k)) this.buf.push({k,f:this.f});
     if(this.buf.length>20) this.buf=this.buf.slice(-20);
   }
@@ -247,43 +328,48 @@ class Fighter{
     return true;
   }
 
-  // ── Human input ──
+  // ── Human input — Clavier AZERTY ou Manette DualSense ──
   handleInput(opp){
     if(!this.isHuman)return;
-    const im=this.im,sb=this.sb,k=KB;
+    const im=this.im,sb=this.sb;
     im.flush();sb.tick();
     if(this.isKO()||this.isHurt())return;
     if(this.isAtk()){const m=this.mv;if(m&&this.sT<m.su+m.ac+m.re)return;if(this.grnd)this.go(S.IDLE);return}
-    const D=im.hk(k.down),U=im.hk(k.up),L=im.hk(k.left),R=im.hk(k.right);
-    const lpP=im.pk(k.lp),mpP=im.pk(k.mp),hpP=im.pk(k.hp);
-    const anyP=lpP||mpP||hpP;
-    const fwd=this.fr?R:L,bck=this.fr?L:R;
+    // Directions — clavier OU manette
+    const T=typeof _touch!=='undefined'?_touch:{};
+    const dn =im.hk(KB.down) ||im.hk(GP.down) ||!!T.down;
+    const up_ =im.hk(KB.up)  ||im.hk(GP.up)   ||!!T.up;
+    const lft =im.hk(KB.left) ||im.hk(GP.left) ||!!T.left;
+    const rgt =im.hk(KB.right)||im.hk(GP.right)||!!T.right;
+    // Boutons attaque
+    const atkP=im.pk(KB.atk) ||im.pk(GP.atk)||!!T.atk;
+    const supP=im.pk(GP.sup)||!!T.sup;
+    const sp2P=im.pk(GP.sp2)||!!T.sp2;
+    const sp3P=im.pk(GP.sp3)||!!T.sp3;
+    const jupP=im.pk(GP.jump)||!!T.jmp;
+    const fwd=this.fr?rgt:lft,bck=this.fr?lft:rgt;
 
-    // SUPER: A+E+R (toutes)
-    if((lpP||mpP||hpP)&&sb.hasAll(['KeyA','KeyE','KeyR'],10)&&this.en>=this.C.eCost){
+    // SUPER direct (R1 manette ou Z+S+R clavier)
+    if((supP||(atkP&&sb.hasAll(['KeyZ','KeyS','KeyR'],12)))&&this.en>=this.C.eCost){
       sb.clear();this.go(S.SUP);return;
     }
-    // SP1: Z+A (saut+léger)
-    if(lpP&&sb.hasAll(['KeyZ','KeyA'],8)){sb.clear();this._sp1();return}
-    // SP2: Z+E (saut+moyen = uppercut)
-    if(mpP&&sb.hasAll(['KeyZ','KeyE'],8)){sb.clear();this.go(S.SP2);return}
-    // SP3: S+R (accroupi+lourd)
-    if(hpP&&D){sb.clear();this._sp3();return}
-    // Attaques normales
-    if(this.grnd){
-      if(D&&hpP){this.go(S.CH);return}
-      if(D&&mpP){this.go(S.CM);return}
-      if(D&&lpP){this.go(S.CL);return}
-      if(hpP){this.go(S.HP);return}
-      if(mpP){this.go(S.MP);return}
-      if(lpP){this.go(S.LP);return}
-    } else if(anyP){this.go(S.JA);return}
-    // Garde
-    if(this.grnd&&bck){this.go(D?S.BL:S.BH);return}
+    // Uppercut direct (Rond manette ou Z+R clavier)
+    if(sp2P||(atkP&&sb.hasAll(['KeyZ','KeyR'],10))){
+      sb.clear();this.go(S.SP2);return;
+    }
+    // Special bas (Triangle manette ou S+R clavier)
+    if(sp3P||(atkP&&dn)){sb.clear();this._sp3();return}
+    // Attaque saut
+    if(atkP&&this.air){this.go(S.JA);return}
+    // Attaque sol
+    if(atkP&&this.grnd){this.go(S.HP);return}
+    // Garde : tenir direction arriere
+    if(this.grnd&&bck){this.go(dn?S.BL:S.BH);return}
     // Mouvements
     if(this.grnd){
-      if(U){this._jump(fwd,bck);return}
-      if(D){this.go(S.CR);return}
+      const jmp=up_||jupP;
+      if(jmp){this._jump(fwd,bck);return}
+      if(dn){this.go(S.CR);return}
       if(fwd){this.go(S.WF);return}
       if(bck){this.go(S.WB);return}
       this.go(S.IDLE);
@@ -839,6 +925,12 @@ class Game{
   constructor(){
     const cv=document.getElementById('c');
     cv.width=W;cv.height=H;
+    // Pointer Lock — capture le curseur pour liberer le stick
+    const _lock=()=>{cv.requestPointerLock=cv.requestPointerLock||cv.mozRequestPointerLock||cv.webkitRequestPointerLock;if(cv.requestPointerLock)cv.requestPointerLock()};
+    cv.addEventListener('click',_lock);
+    window.addEventListener('gamepadconnected',_lock);
+    // Re-capturer si on perd le lock (seulement sur clic)
+    document.addEventListener('pointerlockchange',()=>{});
     const sc=Math.min(window.innerWidth/W,window.innerHeight/H);
     cv.style.width=W*sc+'px';cv.style.height=H*sc+'px';
     this.ctx=cv.getContext('2d');
@@ -869,11 +961,11 @@ class Game{
   }
   _update(){
     switch(this.state){
-      case 'MENU':if(this.mim.p.size>0){this.state='INTRO';this.introF=160;this._reset()}break;
+      case 'MENU':if(this.mim.p.size>0||this.mim.pk('GP_START')||this.mim.pk('GP_ATK')||this.mim.pk('GP_JUMP')){this.state='INTRO';this.introF=160;this._reset()}break;
       case 'INTRO':if(--this.introF<=0){this.state='FIGHT';this.ann('FIGHT !','#ffe020',55)}break;
       case 'FIGHT':this._fight();break;
       case 'RE':if(--this.reF<=0){if(this.p1w>=Math.ceil(this.mr/2)||this.p2w>=Math.ceil(this.mr/2)){this.state='ME'}else{this.round++;this.state='INTRO';this.introF=130;this._reset()}}break;
-      case 'ME':if(this.mim.p.size>0){this.round=1;this.p1w=0;this.p2w=0;this._build();this.state='INTRO';this.introF=140;this._reset()}break;
+      case 'ME':if(this.mim.p.size>0||this.mim.pk('GP_START')||this.mim.pk('GP_ATK')||this.mim.pk('GP_JUMP')){this.round=1;this.p1w=0;this.p2w=0;this._build();this.state='INTRO';this.introF=140;this._reset()}break;
     }
   }
   _fight(){
@@ -910,6 +1002,7 @@ class Game{
     this.sfx.drawFlash(ctx);
     if(this.state!=='MENU') this.ui.draw(ctx,this.p1,this.p2,this.timer,this.p1w,this.p2w,this.mr,this.T);
     if(this.annF>0){const a=this.annF>30?1:this.annF/30;ctx.save();ctx.globalAlpha=a;this.ui.bigText(ctx,this.annT,W/2,H/2+24,this.annC);ctx.restore()}
+    this._debug(ctx);
     switch(this.state){
       case 'MENU': this._menu(ctx);break;
       case 'INTRO': this._intro(ctx);break;
@@ -971,17 +1064,22 @@ class Game{
     ctx.beginPath();ctx.arc(flip?bx+16:bx+bw-16,y+30,10,0,Math.PI*2);ctx.fill();ctx.restore();
   }
   _controls(ctx){
+    const gp=this.p1.im&&this.p1.im.hasGamepad;
     ctx.save();ctx.textAlign='center';
-    // Box
-    ctx.fillStyle='rgba(10,0,30,.65)';ctx.strokeStyle='#4030a0';ctx.lineWidth=1;
+    ctx.fillStyle='rgba(10,0,30,.65)';ctx.strokeStyle=gp?'#40c080':'#4030a0';ctx.lineWidth=1.5;
     ctx.beginPath();rr(ctx,W/2-280,330,560,88,6);ctx.fill();ctx.stroke();
-    ctx.font=`bold 11px 'Courier New',monospace`;ctx.fillStyle='#aa88ff';
-    ctx.fillText('CONTRÔLES JOUEUR 1 (AZERTY)',W/2,350);
+    ctx.font=`bold 11px 'Courier New',monospace`;
+    ctx.fillStyle=gp?'#60ffaa':'#aa88ff';
+    ctx.fillText(gp?'MANETTE DETECTEE — DualSense':'CONTROLES CLAVIER (AZERTY) / MANETTE',W/2,350);
     ctx.font=`10px 'Courier New',monospace`;ctx.fillStyle='#8878cc';
-    const lines=[
-      'Bouger: Z/Q/S/D   |   Attaque: A (léger)  E (moyen)  R (lourd)',
-      'Spécial 1: Z+A  |  Spécial 2 (uppercut): Z+E  |  Spécial 3: S+R',
-      'SUPER: A+E+R simultanément  (quand barre ★ pleine)',
+    const lines=gp?[
+      'Directionnel / stick gauche : bouger',
+      'Carre: attaquer  |  Croix: sauter  |  Rond: uppercut  |  Triangle: special',
+      'R1: SUPER (quand barre etoile pleine)',
+    ]:[
+      'Clavier: Q/D=bouger  Z=sauter  S=accroupir  R=attaquer',
+      'Uppercut: Z+R   |   Special: S+R   |   SUPER: Z+S+R (jauge pleine)',
+      'Branchez une manette pour jouer a la DualSense !',
     ];
     lines.forEach((l,i)=>ctx.fillText(l,W/2,366+i*14));
     ctx.restore();
@@ -1023,6 +1121,22 @@ class Game{
   }
 }
 
+// patch _debug into Game prototype after class definition
+Game.prototype._debug=function(ctx){
+  const g=this.p1&&this.p1.im?this.p1.im._gp():null;
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(4,H-60,320,56);
+  ctx.font='11px monospace';ctx.fillStyle='#0f0';
+  ctx.fillText('GP: '+(g?g.id.substring(0,30):'NON DETECTE'),8,H-44);
+  if(g){
+    let btns='';
+    for(let i=0;i<g.buttons.length;i++) if(g.buttons[i].pressed) btns+=i+' ';
+    ctx.fillText('BTN: '+(btns||'aucun')+' AX:'+g.axes[0].toFixed(1)+'/'+g.axes[1].toFixed(1),8,H-28);
+  }
+  ctx.fillStyle='#ff0';
+  ctx.fillText('URL: qmartignole-sketch.github.io/novaclash',8,H-12);
+  ctx.restore();
+};
 window.addEventListener('load',()=>new Game());
 </script>
 </body>
