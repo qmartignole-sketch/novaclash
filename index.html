@@ -8,8 +8,6 @@
 <meta name="apple-mobile-web-app-title" content="Nova Clash">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000000">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon.png">
 <title>NOVA CLASH</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <style>
@@ -23,6 +21,7 @@ canvas{display:block;image-rendering:pixelated;touch-action:none}
 .mm-sm-btn{padding:6px 12px;border-radius:6px;border:1px solid #4030a0;background:rgba(20,0,50,.8);color:#7060a0;font-family:'Courier New',monospace;font-size:11px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .mm-sm-btn:active{opacity:.7}
 </style>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
 <div id="mainmenu" style="display:flex;position:fixed;inset:0;background:linear-gradient(160deg,#04000f 0%,#08001a 50%,#0c0028 100%);z-index:998;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace">
@@ -35,6 +34,9 @@ canvas{display:block;image-rendering:pixelated;touch-action:none}
   <div style="display:flex;flex-direction:column;gap:12px;width:min(320px,85vw)">
     <button class="mm-btn" id="mm-play" style="background:linear-gradient(90deg,#1a0050,#2a0080);border:2px solid #6040c0;color:#fff">
       <span style="font-size:22px;margin-right:10px">⚔</span> JOUER
+    </button>
+    <button class="mm-btn" id="mm-multi" style="background:linear-gradient(90deg,#001a30,#002050);border:2px solid #22ff8866;color:#22ff88">
+      <span style="font-size:22px;margin-right:10px">🌐</span> MULTIJOUEUR
     </button>
     <button class="mm-btn" id="mm-char" style="background:linear-gradient(90deg,#001a20,#002a30);border:2px solid #2ee8ff66;color:#2ee8ff">
       <span style="font-size:18px;margin-right:10px">👤</span> PERSONNAGES
@@ -70,6 +72,27 @@ canvas{display:block;image-rendering:pixelated;touch-action:none}
   </div>
   <!-- Version -->
   <div style="position:absolute;bottom:14px;color:#2a1850;font-size:10px;letter-spacing:2px">NOVA CLASH v2.0 · HTML5</div>
+</div>
+<div id="matchmaking" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#020010,#04001a);z-index:997;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;text-align:center">
+  <div style="font-family:Impact,sans-serif;font-size:32px;color:#22ff88;text-shadow:0 0 20px #22ff88;margin-bottom:8px">🌐 MULTIJOUEUR</div>
+  <div id="mm-status" style="color:#aaa;font-size:13px;margin-bottom:28px">Connexion...</div>
+  <!-- Timer ring -->
+  <div style="position:relative;width:120px;height:120px;margin-bottom:28px">
+    <canvas id="mm-ring" width="120" height="120"></canvas>
+    <div id="mm-timer" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Impact;font-size:40px;color:#22ff88">10</div>
+  </div>
+  <div id="mm-code" style="background:rgba(10,0,30,.8);border:1px solid #22ff8844;border-radius:10px;padding:14px 28px;margin-bottom:20px;display:none">
+    <div style="color:#666;font-size:10px;letter-spacing:3px;margin-bottom:6px">CODE DE ROOM</div>
+    <div id="mm-code-val" style="font-family:Impact;font-size:28px;color:#22ff88;letter-spacing:6px"></div>
+    <div style="color:#555;font-size:10px;margin-top:4px">Partage ce code à ton ami</div>
+  </div>
+  <!-- Manual code input -->
+  <div style="margin-bottom:16px">
+    <input id="mm-input" type="text" maxlength="6" placeholder="CODE AMI" style="background:rgba(10,0,30,.8);border:1px solid #4030a0;border-radius:8px;padding:10px 16px;color:#fff;font-family:'Courier New';font-size:16px;letter-spacing:4px;width:160px;text-align:center;text-transform:uppercase;-webkit-appearance:none;outline:none">
+    <button id="mm-join" style="margin-left:8px;padding:10px 18px;border-radius:8px;border:1px solid #22ff88;background:rgba(0,20,10,.8);color:#22ff88;font-family:'Courier New';font-size:13px;cursor:pointer">REJOINDRE</button>
+  </div>
+  <div id="mm-found" style="display:none;color:#22ff88;font-size:16px;font-family:Impact;letter-spacing:2px"></div>
+  <button id="mm-cancel" style="margin-top:20px;padding:10px 24px;border-radius:8px;border:1px solid #ff444466;background:rgba(20,0,0,.8);color:#ff6666;font-family:'Courier New';font-size:12px;cursor:pointer">ANNULER</button>
 </div>
 <canvas id="c"></canvas>
 <div id="tc" style="position:fixed;bottom:0;left:0;right:0;height:180px;pointer-events:none;z-index:100;display:none">
@@ -107,6 +130,228 @@ function _tbind(id,key){
   el.addEventListener('mousedown', e=>{_touch[key]=true});
   el.addEventListener('mouseup',   e=>{_touch[key]=false});
 }
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MULTIPLAYER — PeerJS peer-to-peer matchmaking
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let _mp={
+  peer:null, conn:null, isHost:false,
+  searching:false, connected:false,
+  timerEl:null, ringCtx:null, timerInt:null,
+  inputBuf:[], remoteInput:{},
+  myChar:0, oppChar:1,
+};
+
+function _roomCode(){
+  // Rotating slot changes every 30s — auto-matches nearby players
+  return 'NC-'+(Math.floor(Date.now()/30000)%9999).toString().padStart(4,'0');
+}
+function _customCode(v){return 'NC-USER-'+v.toUpperCase().replace(/[^A-Z0-9]/g,'')}
+
+function _startMatchmaking(){
+  const overlay=document.getElementById('matchmaking');
+  overlay.style.display='flex';
+  _mp.searching=true;
+  _mp.connected=false;
+  // Setup ring canvas
+  const rc=document.getElementById('mm-ring');
+  _mp.ringCtx=rc.getContext('2d');
+  _mp.timeLeft=10;
+  _drawRing(10,10);
+  _setStatus('Recherche en cours...');
+  // Cleanup old peer
+  if(_mp.peer){try{_mp.peer.destroy()}catch(e){}}
+  // Try auto-match slot
+  const roomId=_roomCode();
+  _tryHostOrJoin(roomId);
+  // Timer
+  _mp.timerInt=setInterval(()=>{
+    _mp.timeLeft--;
+    _drawRing(_mp.timeLeft,10);
+    document.getElementById('mm-timer').textContent=_mp.timeLeft;
+    if(_mp.timeLeft<=0&&!_mp.connected){
+      clearInterval(_mp.timerInt);
+      _setStatus('Aucun joueur trouvé. En attente...');
+      // Show room code to share
+      const codeEl=document.getElementById('mm-code');
+      const codeVal=document.getElementById('mm-code-val');
+      if(codeEl){codeEl.style.display='block'}
+      if(codeVal){codeVal.textContent=roomId.replace('NC-','')}
+      document.getElementById('mm-timer').textContent='∞';
+    }
+  },1000);
+  // Cancel & join buttons
+  document.getElementById('mm-cancel').onclick=()=>_cancelMatchmaking();
+  document.getElementById('mm-join').onclick=()=>{
+    const v=document.getElementById('mm-input').value.trim();
+    if(v.length>=2){
+      if(_mp.peer){try{_mp.peer.destroy()}catch(e){}}
+      _mp.timeLeft=30;
+      _tryJoinCode(_customCode(v));
+    }
+  };
+}
+
+function _tryHostOrJoin(roomId){
+  // Try to be host first
+  _setStatus('Connexion au serveur...');
+  const peer=new Peer(roomId,{debug:0});
+  _mp.peer=peer;
+  peer.on('open',id=>{
+    _mp.isHost=true;
+    _setStatus("En attente d'un adversaire...");
+    peer.on('connection',conn=>{_onConnect(conn,true)});
+  });
+  peer.on('error',err=>{
+    // ID taken = someone is already waiting, connect to them
+    if(err.type==='unavailable-id'||err.type==='peer-unavailable'){
+      _tryJoinCode(roomId);
+    } else {
+      _setStatus('Erreur: '+err.type);
+    }
+  });
+}
+
+function _tryJoinCode(roomId){
+  _setStatus("onnexion à l'adversaire...'");
+  const peer=new Peer(undefined,{debug:0});
+  _mp.peer=peer;
+  peer.on('open',()=>{
+    const conn=peer.connect(roomId,{reliable:true,serialization:'json'});
+    conn.on('open',()=>_onConnect(conn,false));
+    conn.on('error',e=>_setStatus('Impossible de rejoindre ce code'));
+  });
+  peer.on('error',e=>_setStatus('Erreur connexion: '+e.type));
+}
+
+function _onConnect(conn,isHost){
+  if(_mp.connected)return;
+  clearInterval(_mp.timerInt);
+  _mp.conn=conn;_mp.isHost=isHost;_mp.connected=true;_mp.searching=false;
+  document.getElementById('mm-timer').textContent='✓';
+  document.getElementById('mm-code').style.display='none';
+  const foundEl=document.getElementById('mm-found');
+  foundEl.style.display='block';
+  foundEl.textContent=isHost?'ADVERSAIRE TROUVÉ !':'CONNECTÉ !';
+  _setStatus(isHost?'Tu joues en BLEU (P1)':'Tu joues en ROUGE (P2)');
+  conn.on('data',_onRemoteData);
+  conn.on('close',()=>_onDisconnect());
+  // Flash then start char select
+  setTimeout(()=>{
+    document.getElementById('matchmaking').style.display='none';
+    _mp.myChar=0;_mp.oppChar=1;
+    // Host picks first, then syncs
+    _startMultiGame();
+  },1800);
+}
+
+function _onRemoteData(data){
+  if(data.type==='charsel'){
+    // Opponent chose their char
+    _mp.oppChar=data.char;
+    if(window._game&&window._game._multiReady){
+      window._game._multiReady();
+    }
+  }
+  if(data.type==='input'){
+    _mp.remoteInput=data.inp;
+  }
+  if(data.type==='ready'){
+    _mp.remoteReady=true;
+    if(_mp.localReady&&window._game) _launchMulti();
+  }
+}
+
+function _onDisconnect(){
+  if(window._game){
+    window._game.state='MENU';
+    _showMainMenu();
+  }
+  alert('Adversaire déconnecté !');
+}
+
+function _startMultiGame(){
+  // Show char select for local player
+  if(!window._game)return;
+  const g=window._game;
+  g._multiMode=true;
+  _mp.localReady=false;_mp.remoteReady=false;
+  // Reuse existing charsel but only for 1 pick
+  g._showCS(0);
+  // Override button behavior for multi
+  const orig=g._onCSPick;
+  g._onCSPickMulti=(idx)=>{
+    _mp.myChar=idx;
+    // Send to opponent
+    if(_mp.conn)_mp.conn.send({type:'charsel',char:idx});
+    _mp.localReady=true;
+    // Show waiting
+    const e=document.getElementById('charsel');
+    if(e)e.style.display='none';
+    _showWaitingForOpponent();
+    if(_mp.remoteReady) _launchMulti();
+  };
+}
+
+function _showWaitingForOpponent(){
+  const overlay=document.getElementById('matchmaking');
+  overlay.style.display='flex';
+  document.getElementById('mm-timer').textContent='⏳';
+  document.getElementById('mm-found').style.display='none';
+  _setStatus("En attente du choix de l'adversaire...");
+  document.getElementById('mm-cancel').style.display='none';
+  document.getElementById('mm-code').style.display='none';
+  const ring=document.getElementById('mm-ring');
+  if(ring){const c=ring.getContext('2d');c.clearRect(0,0,120,120)}
+}
+
+function _launchMulti(){
+  document.getElementById('matchmaking').style.display='none';
+  const g=window._game;if(!g)return;
+  const ckeys=Object.keys(CHARS);
+  const host=_mp.isHost;
+  const p1char=host?ckeys[_mp.myChar]:ckeys[_mp.oppChar];
+  const p2char=host?ckeys[_mp.oppChar]:ckeys[_mp.myChar];
+  g._buildWith(p1char,p2char);g._reset();
+  g._multiMode=true;
+  g._multiIsHost=host;
+  g.state='INTRO';g.introF=160;
+}
+
+function _cancelMatchmaking(){
+  clearInterval(_mp.timerInt);
+  if(_mp.peer){try{_mp.peer.destroy()}catch(e){}}
+  _mp.searching=false;_mp.connected=false;
+  document.getElementById('matchmaking').style.display='none';
+  _showMainMenu();
+}
+
+function _setStatus(txt){const e=document.getElementById('mm-status');if(e)e.textContent=txt}
+
+function _drawRing(t,max){
+  const ctx=_mp.ringCtx;if(!ctx)return;
+  ctx.clearRect(0,0,120,120);
+  const cx=60,cy=60,r=50;
+  // BG ring
+  ctx.strokeStyle='rgba(255,255,255,.08)';ctx.lineWidth=8;
+  ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
+  // Progress ring
+  const prog=(t/max)*Math.PI*2;
+  const col=t>5?'#22ff88':t>2?'#ffa020':'#ff4444';
+  ctx.strokeStyle=col;ctx.lineWidth=8;ctx.shadowBlur=12;ctx.shadowColor=col;
+  ctx.lineCap='round';
+  ctx.beginPath();ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+prog);ctx.stroke();
+  ctx.shadowBlur=0;
+}
+
+// ── Multiplayer input sync ───────────────────────────────
+function _syncMultiInput(inp){
+  // Called each frame from handleInput
+  if(_mp.conn&&_mp.connected){
+    _mp.conn.send({type:'input',inp});
+  }
+}
+function _getRemoteInput(){return _mp.remoteInput||{}}
+
 // Global menu functions
 function _showMainMenu(){const e=document.getElementById('mainmenu');if(e)e.style.display='flex'}
 function _hideMainMenu(){const e=document.getElementById('mainmenu');if(e)e.style.display='none'}
@@ -114,6 +359,8 @@ function _showCharSel(p){_hideMainMenu();if(window._game)window._game._showCS(p)
 function _initMenu(){
   const play=document.getElementById('mm-play');
   if(play)play.addEventListener('click',()=>_showCharSel(0));
+  const multi=document.getElementById('mm-multi');
+  if(multi)multi.addEventListener('click',()=>{_hideMainMenu();_startMatchmaking()});
   const charBtn=document.getElementById('mm-char');
   const charPanel=document.getElementById('mm-char-panel');
   const optsPanel=document.getElementById('mm-opts-panel');
@@ -1077,8 +1324,21 @@ class Game{
       div.style.cssText=`width:148px;border-radius:12px;border:2px solid ${C.col};background:rgba(6,0,24,.97);color:#fff;display:flex;flex-direction:column;align-items:center;padding:14px 10px 12px;box-sizing:border-box`;
       div.innerHTML=`<div style="font-family:Impact;font-size:22px;color:${C.col};text-shadow:0 0 8px ${C.glow};margin-bottom:4px">${C.name}</div><div style="font-size:9px;color:${C.glow};margin-bottom:8px;text-align:center">${C.sub}</div><div style="font-size:9px;color:#aaa;text-align:left;line-height:1.6;width:100%;margin-bottom:8px">${(C.desc||[]).map(d=>'<div>• '+d+'</div>').join('')}</div><div style="font-size:9px;color:#555;margin-bottom:10px">HP: ${C.hp}</div><button style="width:100%;padding:10px 0;border-radius:20px;border:none;background:${C.col};color:#000;font-family:Impact;font-size:14px;cursor:pointer">CHOISIR</button>`;
       div.querySelector('button').onclick=()=>{
-        if(phase===0){this._p1sel=i;this._showCS(1)}
-        else{this._p2sel=i;const e=document.getElementById('charsel');if(e)e.style.display='none';this._buildWith(ckeys[this._p1sel||0],ckeys[this._p2sel||1]);this._reset();this.state='INTRO';this.introF=160}
+        if(phase===0){
+          if(this._multiMode){
+            // Multi: only pick our char, then wait
+            this._p1sel=i;
+            if(window._mp&&window._mp.conn){window._mp.conn.send({type:'charsel',char:i})}
+            window._mp.localReady=true;
+            const e=document.getElementById('charsel');if(e)e.style.display='none';
+            _showWaitingForOpponent();
+            if(window._mp.remoteReady)_launchMulti();
+          } else {
+            this._p1sel=i;this._showCS(1);
+          }
+        } else {
+          this._p2sel=i;const e=document.getElementById('charsel');if(e)e.style.display='none';this._buildWith(ckeys[this._p1sel||0],ckeys[this._p2sel||1]);this._reset();this.state='INTRO';this.introF=160
+        }
       };
       cards.appendChild(div);
     });}
@@ -1113,7 +1373,31 @@ class Game{
   _fight(){
     if(++this.tf>=60){this.tf=0;this.timer--}
     if(this.timer<=0){this._endRound();return}
-    this.p1.handleInput(this.p2);this.ai.tick(this.p1,this.pts);
+    // Multiplayer input sync
+    if(this._multiMode){
+      this.p1.handleInput(this.p2);
+      // Send P1 inputs to opponent
+      if(this._multiIsHost){
+        _syncMultiInput({
+          left:this.p1.im.hk(KB.left),right:this.p1.im.hk(KB.right),
+          up:this.p1.im.hk(KB.up),down:this.p1.im.hk(KB.down),
+          atk:this.p1.im.pk(KB.atk),sp2:TC.sp2,sp3:TC.sp3,sup:TC.sup
+        });
+        // P2 = opponent inputs
+        this._applyRemoteToP2();
+      } else {
+        // Client: I am P2
+        _syncMultiInput({
+          left:this.p1.im.hk(KB.left),right:this.p1.im.hk(KB.right),
+          up:this.p1.im.hk(KB.up),down:this.p1.im.hk(KB.down),
+          atk:this.p1.im.pk(KB.atk),sp2:TC.sp2,sp3:TC.sp3,sup:TC.sup
+        });
+        // Apply remote (host=P1) inputs — we ARE P2 locally
+        this._applyRemoteToP2();
+      }
+    } else {
+      this.p1.handleInput(this.p2);this.ai.tick(this.p1,this.pts);
+    }
     if(this.p1.st===S.SUP&&this.p1.sT===2){this.sfx.slow(90);this.sfx.flash(this.p1.C.col,.6,16);this.sfx.shake(11,25);this._spLbl('SUPER !',this.p1.C.col)}
     if(this.p2.st===S.SUP&&this.p2.sT===2){this.sfx.slow(90);this.sfx.flash(this.p2.C.col,.6,16);this.sfx.shake(11,25);this._spLbl('SUPER !',this.p2.C.col)}
     if(this.p1.st===S.SP2&&this.p1.sT===2)this._spLbl('UPPERCUT !','#ff8820');
@@ -1126,6 +1410,39 @@ class Game{
     if(!skip)this.pts.tick();
     if(this.annF>0)this.annF--;
     if(this.p1.hp<=0||this.p2.hp<=0)this._endRound();
+  }
+  _applyRemoteToP2(){
+    const ri=_getRemoteInput();
+    const f=this.p2;
+    if(f.isKO()||f.isHurt())return;
+    if(f.isAtk()){const m=f.mv;if(m&&f.sT<m.su+m.ac+m.re)return;if(f.grnd)f.go(S.IDLE);return}
+    const dn=!!ri.down,up=!!ri.up,lft=!!ri.left,rgt=!!ri.right;
+    const atkP=!!ri.atk,sp2P=!!ri.sp2,sp3P=!!ri.sp3,supP=!!ri.sup;
+    const fwd=f.fr?rgt:lft,bck=f.fr?lft:rgt;
+    if(supP&&f.en>=f.C.eCost){f.go(S.SU);return}
+    if(sp2P){f.go(S.SP2);f.vy=-17;if(f.grnd)f.y=FLOOR-1;return}
+    if(sp3P&&dn){this._doSP3Remote(f);return}
+    if(atkP&&f.air){f.go(S.JA);return}
+    if(atkP&&up){this._doSP1Remote(f);return}
+    if(atkP&&f.grnd){f.go(S.HP);return}
+    if(f.grnd&&bck){f.go(dn?S.BL:S.BH);return}
+    if(f.grnd){
+      if(up&&!f.air){f.vy=JV;f.y=FLOOR-1;f.go(fwd?S.JF:bck?S.JB:S.JU);f.vx=fwd?(f.fr?WF:-WF):bck?(f.fr?-WB:WB):0;return}
+      if(dn){f.go(S.CR);return}
+      if(fwd){f.go(S.WF);return}
+      if(bck){f.go(S.WB);return}
+      f.go(S.IDLE);
+    }
+  }
+  _doSP1Remote(f){
+    f.go(S.SP1);const d=f.fr?1:-1;
+    if(f.cn==='RYOKEN')f.projs.push(new Proj(f.x+d*44,f.y-74,d,f.id,{spd:9,dmg:85,w:36,h:24,col:f.C.col,glow:f.C.glow,type:'e',life:110}));
+    else if(f.cn==='KIRA'){f.vx=d*14}
+  }
+  _doSP3Remote(f){
+    f.go(S.SP3);const d=f.fr?1:-1;
+    if(f.cn==='KIRA')f.projs.push(new Proj(f.x+d*30,f.y-64,d,f.id,{spd:5.5,dmg:70,w:52,h:52,col:'#ff5522',glow:'#fa8',type:'f',life:90}));
+    else if(f.cn==='RYOKEN'){f.vx=d*9}
   }
   _endRound(){
     if(this.state!=='FIGHT')return;
@@ -1288,6 +1605,221 @@ Game.prototype._debug=function(ctx){
   ctx.fillText('URL: qmartignole-sketch.github.io/novaclash',8,H-12);
   ctx.restore();
 };
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MULTIPLAYER — PeerJS peer-to-peer matchmaking
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function _roomCode(){
+  // Rotating slot changes every 30s — auto-matches nearby players
+  return 'NC-'+(Math.floor(Date.now()/30000)%9999).toString().padStart(4,'0');
+}
+function _customCode(v){return 'NC-USER-'+v.toUpperCase().replace(/[^A-Z0-9]/g,'')}
+
+function _startMatchmaking(){
+  const overlay=document.getElementById('matchmaking');
+  overlay.style.display='flex';
+  _mp.searching=true;
+  _mp.connected=false;
+  // Setup ring canvas
+  const rc=document.getElementById('mm-ring');
+  _mp.ringCtx=rc.getContext('2d');
+  _mp.timeLeft=10;
+  _drawRing(10,10);
+  _setStatus('Recherche en cours...');
+  // Cleanup old peer
+  if(_mp.peer){try{_mp.peer.destroy()}catch(e){}}
+  // Try auto-match slot
+  const roomId=_roomCode();
+  _tryHostOrJoin(roomId);
+  // Timer
+  _mp.timerInt=setInterval(()=>{
+    _mp.timeLeft--;
+    _drawRing(_mp.timeLeft,10);
+    document.getElementById('mm-timer').textContent=_mp.timeLeft;
+    if(_mp.timeLeft<=0&&!_mp.connected){
+      clearInterval(_mp.timerInt);
+      _setStatus('Aucun joueur trouvé. En attente...');
+      // Show room code to share
+      const codeEl=document.getElementById('mm-code');
+      const codeVal=document.getElementById('mm-code-val');
+      if(codeEl){codeEl.style.display='block'}
+      if(codeVal){codeVal.textContent=roomId.replace('NC-','')}
+      document.getElementById('mm-timer').textContent='∞';
+    }
+  },1000);
+  // Cancel & join buttons
+  document.getElementById('mm-cancel').onclick=()=>_cancelMatchmaking();
+  document.getElementById('mm-join').onclick=()=>{
+    const v=document.getElementById('mm-input').value.trim();
+    if(v.length>=2){
+      if(_mp.peer){try{_mp.peer.destroy()}catch(e){}}
+      _mp.timeLeft=30;
+      _tryJoinCode(_customCode(v));
+    }
+  };
+}
+
+function _tryHostOrJoin(roomId){
+  // Try to be host first
+  _setStatus('Connexion au serveur...');
+  const peer=new Peer(roomId,{debug:0});
+  _mp.peer=peer;
+  peer.on('open',id=>{
+    _mp.isHost=true;
+    _setStatus("En attente d'un adversaire...");
+    peer.on('connection',conn=>{_onConnect(conn,true)});
+  });
+  peer.on('error',err=>{
+    // ID taken = someone is already waiting, connect to them
+    if(err.type==='unavailable-id'||err.type==='peer-unavailable'){
+      _tryJoinCode(roomId);
+    } else {
+      _setStatus('Erreur: '+err.type);
+    }
+  });
+}
+
+function _tryJoinCode(roomId){
+  _setStatus("onnexion à l'adversaire...'");
+  const peer=new Peer(undefined,{debug:0});
+  _mp.peer=peer;
+  peer.on('open',()=>{
+    const conn=peer.connect(roomId,{reliable:true,serialization:'json'});
+    conn.on('open',()=>_onConnect(conn,false));
+    conn.on('error',e=>_setStatus('Impossible de rejoindre ce code'));
+  });
+  peer.on('error',e=>_setStatus('Erreur connexion: '+e.type));
+}
+
+function _onConnect(conn,isHost){
+  if(_mp.connected)return;
+  clearInterval(_mp.timerInt);
+  _mp.conn=conn;_mp.isHost=isHost;_mp.connected=true;_mp.searching=false;
+  document.getElementById('mm-timer').textContent='✓';
+  document.getElementById('mm-code').style.display='none';
+  const foundEl=document.getElementById('mm-found');
+  foundEl.style.display='block';
+  foundEl.textContent=isHost?'ADVERSAIRE TROUVÉ !':'CONNECTÉ !';
+  _setStatus(isHost?'Tu joues en BLEU (P1)':'Tu joues en ROUGE (P2)');
+  conn.on('data',_onRemoteData);
+  conn.on('close',()=>_onDisconnect());
+  // Flash then start char select
+  setTimeout(()=>{
+    document.getElementById('matchmaking').style.display='none';
+    _mp.myChar=0;_mp.oppChar=1;
+    // Host picks first, then syncs
+    _startMultiGame();
+  },1800);
+}
+
+function _onRemoteData(data){
+  if(data.type==='charsel'){
+    // Opponent chose their char
+    _mp.oppChar=data.char;
+    if(window._game&&window._game._multiReady){
+      window._game._multiReady();
+    }
+  }
+  if(data.type==='input'){
+    _mp.remoteInput=data.inp;
+  }
+  if(data.type==='ready'){
+    _mp.remoteReady=true;
+    if(_mp.localReady&&window._game) _launchMulti();
+  }
+}
+
+function _onDisconnect(){
+  if(window._game){
+    window._game.state='MENU';
+    _showMainMenu();
+  }
+  alert('Adversaire déconnecté !');
+}
+
+function _startMultiGame(){
+  // Show char select for local player
+  if(!window._game)return;
+  const g=window._game;
+  g._multiMode=true;
+  _mp.localReady=false;_mp.remoteReady=false;
+  // Reuse existing charsel but only for 1 pick
+  g._showCS(0);
+  // Override button behavior for multi
+  const orig=g._onCSPick;
+  g._onCSPickMulti=(idx)=>{
+    _mp.myChar=idx;
+    // Send to opponent
+    if(_mp.conn)_mp.conn.send({type:'charsel',char:idx});
+    _mp.localReady=true;
+    // Show waiting
+    const e=document.getElementById('charsel');
+    if(e)e.style.display='none';
+    _showWaitingForOpponent();
+    if(_mp.remoteReady) _launchMulti();
+  };
+}
+
+function _showWaitingForOpponent(){
+  const overlay=document.getElementById('matchmaking');
+  overlay.style.display='flex';
+  document.getElementById('mm-timer').textContent='⏳';
+  document.getElementById('mm-found').style.display='none';
+  _setStatus("En attente du choix de l'adversaire...");
+  document.getElementById('mm-cancel').style.display='none';
+  document.getElementById('mm-code').style.display='none';
+  const ring=document.getElementById('mm-ring');
+  if(ring){const c=ring.getContext('2d');c.clearRect(0,0,120,120)}
+}
+
+function _launchMulti(){
+  document.getElementById('matchmaking').style.display='none';
+  const g=window._game;if(!g)return;
+  const ckeys=Object.keys(CHARS);
+  const host=_mp.isHost;
+  const p1char=host?ckeys[_mp.myChar]:ckeys[_mp.oppChar];
+  const p2char=host?ckeys[_mp.oppChar]:ckeys[_mp.myChar];
+  g._buildWith(p1char,p2char);g._reset();
+  g._multiMode=true;
+  g._multiIsHost=host;
+  g.state='INTRO';g.introF=160;
+}
+
+function _cancelMatchmaking(){
+  clearInterval(_mp.timerInt);
+  if(_mp.peer){try{_mp.peer.destroy()}catch(e){}}
+  _mp.searching=false;_mp.connected=false;
+  document.getElementById('matchmaking').style.display='none';
+  _showMainMenu();
+}
+
+function _setStatus(txt){const e=document.getElementById('mm-status');if(e)e.textContent=txt}
+
+function _drawRing(t,max){
+  const ctx=_mp.ringCtx;if(!ctx)return;
+  ctx.clearRect(0,0,120,120);
+  const cx=60,cy=60,r=50;
+  // BG ring
+  ctx.strokeStyle='rgba(255,255,255,.08)';ctx.lineWidth=8;
+  ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
+  // Progress ring
+  const prog=(t/max)*Math.PI*2;
+  const col=t>5?'#22ff88':t>2?'#ffa020':'#ff4444';
+  ctx.strokeStyle=col;ctx.lineWidth=8;ctx.shadowBlur=12;ctx.shadowColor=col;
+  ctx.lineCap='round';
+  ctx.beginPath();ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+prog);ctx.stroke();
+  ctx.shadowBlur=0;
+}
+
+// ── Multiplayer input sync ───────────────────────────────
+function _syncMultiInput(inp){
+  // Called each frame from handleInput
+  if(_mp.conn&&_mp.connected){
+    _mp.conn.send({type:'input',inp});
+  }
+}
+function _getRemoteInput(){return _mp.remoteInput||{}}
+
 // Global menu functions
 function _showMainMenu(){const e=document.getElementById('mainmenu');if(e)e.style.display='flex'}
 function _hideMainMenu(){const e=document.getElementById('mainmenu');if(e)e.style.display='none'}
@@ -1295,6 +1827,8 @@ function _showCharSel(p){_hideMainMenu();if(window._game)window._game._showCS(p)
 function _initMenu(){
   const play=document.getElementById('mm-play');
   if(play)play.addEventListener('click',()=>_showCharSel(0));
+  const multi=document.getElementById('mm-multi');
+  if(multi)multi.addEventListener('click',()=>{_hideMainMenu();_startMatchmaking()});
   const charBtn=document.getElementById('mm-char');
   const charPanel=document.getElementById('mm-char-panel');
   const optsPanel=document.getElementById('mm-opts-panel');
@@ -1327,6 +1861,7 @@ function setDiff(n){const c=n===1?'#22ff88':n===2?'#ffa020':'#ff4444';['1','2','
 
 window.addEventListener('load',()=>{
   window._game=new Game();
+  window._mp=_mp;
   _initMenu();_showMainMenu();
   // Plein écran automatique sur mobile
   const goFS=()=>{
