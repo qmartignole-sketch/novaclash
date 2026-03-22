@@ -782,19 +782,20 @@ class Game{
     this.sfx.shake(14,22);this.sfx.flash('#fff',.45,10);this.state='RE';this.reF=200;
   }
   _draw(){
-    const ctx=this.ctx;ctx.clearRect(0,0,W,H);ctx.save();this.sfx.apply(ctx);
+    const ctx=this.ctx;ctx.clearRect(0,0,W,H);
+    // Ecrans sans jeu en fond
+    if(this.state==='MENU'){this._drawMenu(ctx);return}
+    if(this.state==='CHARSEL'){this._drawCharSel(ctx);return}
+    // Ecrans de combat
+    ctx.save();this.sfx.apply(ctx);
     this.stage.draw(ctx);
     for(const f of[this.p1,this.p2])if(f.st===S.SU)this._superAura(f);
     this.p1.draw(ctx,this.pts,this.T);this.p2.draw(ctx,this.pts,this.T);
     this.pts.draw(ctx);ctx.restore();this.sfx.drawFlash(ctx);
-    if(!['MENU','CHARSEL'].includes(this.state))this.ui.draw(ctx,this.p1,this.p2,this.timer,this.p1w,this.p2w,this.mr,this.T);
+    this.ui.draw(ctx,this.p1,this.p2,this.timer,this.p1w,this.p2w,this.mr,this.T);
     if(this.annF>0){const a=this.annF>30?1:this.annF/30;ctx.save();ctx.globalAlpha=a;this.ui.bigText(ctx,this.annT,W/2,H/2+24,this.annC);ctx.restore()}
-    switch(this.state){
-      case 'MENU':this._drawMenu(ctx);break;
-      case 'CHARSEL':this._drawCharSel(ctx);break;
-      case 'INTRO':this._drawIntro(ctx);break;
-      case 'ME':this._drawMatchEnd(ctx);break;
-    }
+    if(this.state==='INTRO')this._drawIntro(ctx);
+    if(this.state==='ME')this._drawMatchEnd(ctx);
   }
   _superAura(f){
     const ctx=this.ctx,C=f.C,T=this.T;ctx.save();
