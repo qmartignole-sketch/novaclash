@@ -16,16 +16,27 @@ canvas{display:block;touch-action:none}
 #tc{position:fixed;bottom:0;left:0;right:0;pointer-events:none;z-index:100;display:none}
 .tb{border:2px solid rgba(255,255,255,.4);border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:15px;font-weight:bold;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none;position:absolute}
 .tb:active{background:rgba(255,255,255,.25)}
+#charsel{font-family:'Courier New',monospace}
+.cs-card{width:180px;min-height:260px;border-radius:14px;border:2px solid #444;background:rgba(8,0,24,.9);color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;padding:16px 10px;transition:transform .1s,box-shadow .1s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.cs-card:active{transform:scale(.96)}
+.cs-card.selected{transform:scale(1.05)}
+.cs-name{font-family:Impact,sans-serif;font-size:24px;margin-bottom:4px}
+.cs-sub{font-size:9px;opacity:.7;margin-bottom:10px;text-align:center}
+.cs-sep{width:80%;height:1px;background:rgba(255,255,255,.2);margin:6px 0}
+.cs-desc{font-size:9px;text-align:center;line-height:1.7;opacity:.85;flex:1}
+.cs-hp{font-size:8px;opacity:.6;margin-top:8px}
+.cs-btn{width:100%;padding:8px;border-radius:20px;border:none;font-family:Impact,sans-serif;font-size:14px;cursor:pointer;margin-top:10px;letter-spacing:1px}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="cs-btns" style="position:fixed;bottom:0;left:0;right:0;height:70px;display:none;z-index:200;pointer-events:none">
-  <button id="cs-l" style="position:absolute;left:8px;bottom:8px;width:80px;height:54px;border:2px solid rgba(255,255,255,.4);border-radius:10px;background:rgba(0,0,50,.7);color:#fff;font-size:26px;pointer-events:all;touch-action:none">◀</button>
-  <button id="cs-ok" style="position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:160px;height:54px;border:2px solid rgba(100,200,255,.6);border-radius:10px;background:rgba(0,20,60,.8);color:#fff;font-size:14px;font-weight:bold;pointer-events:all;touch-action:none">CONFIRMER ✓</button>
-  <button id="cs-r" style="position:absolute;right:8px;bottom:8px;width:80px;height:54px;border:2px solid rgba(255,255,255,.4);border-radius:10px;background:rgba(0,0,50,.7);color:#fff;font-size:26px;pointer-events:all;touch-action:none">▶</button>
+<div id="charsel" style="position:fixed;top:0;left:0;right:0;bottom:0;display:none;z-index:300;flex-direction:column;align-items:center;justify-content:center;background:#030010">
+  <div id="cs-title" style="color:#fff;font-family:Impact,sans-serif;font-size:28px;text-align:center;margin-bottom:8px;text-shadow:0 0 16px #8040ff">CHOISIS TON PERSONNAGE</div>
+  <div id="cs-sub" style="color:#2ee8ff;font-family:Courier New,monospace;font-size:12px;text-align:center;margin-bottom:28px">Appuie sur un personnage</div>
+  <div id="cs-cards" style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;padding:0 12px"></div>
+  <div id="cs-p1chosen" style="margin-top:20px;color:#2ee8ff;font-family:Courier New,monospace;font-size:13px;display:none"></div>
 </div>
-<div id="tc">
+<div id="tc"><div id="tc">
   <div id="dpad" style="position:absolute;left:12px;bottom:12px;width:148px;height:148px">
     <button class="tb" id="tl" style="left:0;top:49px;width:50px;height:50px">◀</button>
     <button class="tb" id="tr" style="right:0;top:49px;width:50px;height:50px">▶</button>
@@ -769,8 +780,7 @@ class Game{
   _loop(ts){
     requestAnimationFrame(ts2=>this._loop(ts2));
     this.T=ts/1000;this.sfx.tick();this.stage.tick();this.mim.flush();
-    const _csb=document.getElementById('cs-btns');
-    if(_csb)_csb.style.display=this.state==='CHARSEL'?'block':'none';
+
     if(!this.sfx.frozen)this._update();
     this._draw();
   }
@@ -778,16 +788,58 @@ class Game{
   _update(){
     if(this._touchStart)this._touchStart=false;
     switch(this.state){
-      case 'MENU':if(this._anyKey()){this.state='CHARSEL'}break;
+      case 'MENU':if(this._anyKey()){this.state='CHARSEL';this.showCharSel(0)}break;
       case 'CHARSEL':this._charSelUpdate();break;
       case 'INTRO':if(--this.introF<=0){this.state='FIGHT';this.ann('FIGHT !','#ffe020',55)}break;
       case 'FIGHT':this._fight();break;
       case 'RE':if(--this.reF<=0){if(this.p1w>=Math.ceil(this.mr/2)||this.p2w>=Math.ceil(this.mr/2)){this.state='ME'}else{this.round++;this.state='INTRO';this.introF=130;this._reset()}}break;
-      case 'ME':if(this._anyKey()){this.round=1;this.p1w=0;this.p2w=0;this.state='MENU'}break;
+      case 'ME':if(this._anyKey()){this.round=1;this.p1w=0;this.p2w=0;this.hideCharSel();this.state='MENU'}break;
     }
   }
   _charSelUpdate(){
-    // Géré entièrement par les taps canvas - rien à faire ici
+    // Géré par HTML overlay
+  }
+  showCharSel(phase){
+    const el=document.getElementById('charsel');
+    const title=document.getElementById('cs-title');
+    const sub=document.getElementById('cs-sub');
+    const cards=document.getElementById('cs-cards');
+    const p1info=document.getElementById('cs-p1chosen');
+    el.style.display='flex';
+    title.textContent=phase===0?'CHOISIS TON PERSONNAGE':"CHOISIS L'ADVERSAIRE";
+    title.style.textShadow=`0 0 16px ${phase===0?'#2ee8ff':'#ff5522'}`;
+    sub.style.color=phase===0?'#2ee8ff':'#ff5522';
+    if(phase===1){p1info.style.display='block';p1info.textContent='TON PERSO : '+CHARS[this.chars[this.p1sel]].name;p1info.style.color=CHARS[this.chars[this.p1sel]].col}
+    else p1info.style.display='none';
+    cards.innerHTML='';
+    this.chars.forEach((cn,i)=>{
+      const C=CHARS[cn];
+      const card=document.createElement('div');
+      card.className='cs-card';
+      card.style.borderColor=C.col;
+      card.style.boxShadow=`0 0 0px ${C.col}`;
+      card.innerHTML=`
+        <div class="cs-name" style="color:${C.col};text-shadow:0 0 10px ${C.glow}">${C.name}</div>
+        <div class="cs-sub" style="color:${C.glow}">${C.sub}</div>
+        <div class="cs-sep" style="background:${C.col}44"></div>
+        <div class="cs-desc">${C.desc.map(d=>'• '+d).join('<br>')}</div>
+        <div class="cs-hp">HP : ${C.hp}</div>
+        <button class="cs-btn" style="background:${C.col};color:#000">CHOISIR</button>`;
+      card.addEventListener('click',()=>{
+        // Flash
+        card.style.boxShadow=`0 0 30px ${C.col}`;
+        card.style.transform='scale(1.05)';
+        setTimeout(()=>{
+          if(phase===0){this.p1sel=i;this.curSel=1;this.showCharSel(1)}
+          else{this.p2sel=i;this.hideCharSel();this._build();this._reset();this.state='INTRO';this.introF=160;this.curSel=0}
+        },180);
+      });
+      cards.appendChild(card);
+    });
+  }
+  hideCharSel(){
+    const el=document.getElementById('charsel');
+    if(el)el.style.display='none';
   }
     _fight(){
     if(++this.tf>=60){this.tf=0;this.timer--}
@@ -815,7 +867,11 @@ class Game{
     const ctx=this.ctx;ctx.clearRect(0,0,W,H);
     // Ecrans sans jeu en fond
     if(this.state==='MENU'){this._drawMenu(ctx);return}
-    if(this.state==='CHARSEL'){this._drawCharSel(ctx);return}
+    if(this.state==='CHARSEL'){
+      // Fond simple - l'overlay HTML gère l'affichage
+      ctx.fillStyle='#030010';ctx.fillRect(0,0,W,H);
+      return;
+    }
     // Ecrans de combat
     ctx.save();this.sfx.apply(ctx);
     this.stage.draw(ctx);
