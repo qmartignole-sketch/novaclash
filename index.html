@@ -701,18 +701,53 @@ class Game{
     this._touchStart=false;
     cv.addEventListener('touchstart',e=>{
       this._touchStart=true;
-      if(this.state==='CHARSEL'){
+      if(this.state==='CHARSEL'&&this._cardZones){
         const sc=Math.min(window.innerWidth/W,window.innerHeight/H);
         const rect=cv.getBoundingClientRect();
         const t=e.touches[0];
         const tx=(t.clientX-rect.left)/sc,ty=(t.clientY-rect.top)/sc;
-        if(tx<200){this._selBtn='L';this._selCd=0}
-        else if(tx>W-200){this._selBtn='R';this._selCd=0}
-        else if(ty>H-70){this._selBtn='A';this._selCd=0}
-        else{this._selBtn='A';this._selCd=0} // tap centre = confirmer
+        this._hoverIdx=null;
+        for(const z of this._cardZones){
+          if(tx>=z.bx&&tx<=z.bx+z.w&&ty>=z.by&&ty<=z.by+z.h){
+            this._hoverIdx=z.idx;
+            // Sélectionner le perso
+            if(this.curSel===0){
+              this.p1sel=z.idx;
+              setTimeout(()=>{this.curSel=1;this._hoverIdx=null},300);
+            } else {
+              this.p2sel=z.idx;
+              setTimeout(()=>{this._build();this._reset();this.state='INTRO';this.introF=160;this.curSel=0;this._hoverIdx=null},300);
+            }
+            break;
+          }
+        }
         e.preventDefault();
       }
     },{passive:false});
+    // Hover sur desktop
+    cv.addEventListener('mousemove',e=>{
+      if(this.state==='CHARSEL'&&this._cardZones){
+        const sc=Math.min(window.innerWidth/W,window.innerHeight/H);
+        const rect=cv.getBoundingClientRect();
+        const tx=(e.clientX-rect.left)/sc,ty=(e.clientY-rect.top)/sc;
+        this._hoverIdx=null;
+        for(const z of this._cardZones){if(tx>=z.bx&&tx<=z.bx+z.w&&ty>=z.by&&ty<=z.by+z.h){this._hoverIdx=z.idx;break}}
+      }
+    });
+    cv.addEventListener('click',e=>{
+      if(this.state==='CHARSEL'&&this._cardZones){
+        const sc=Math.min(window.innerWidth/W,window.innerHeight/H);
+        const rect=cv.getBoundingClientRect();
+        const tx=(e.clientX-rect.left)/sc,ty=(e.clientY-rect.top)/sc;
+        for(const z of this._cardZones){
+          if(tx>=z.bx&&tx<=z.bx+z.w&&ty>=z.by&&ty<=z.by+z.h){
+            if(this.curSel===0){this.p1sel=z.idx;setTimeout(()=>{this.curSel=1},300)}
+            else{this.p2sel=z.idx;setTimeout(()=>{this._build();this._reset();this.state='INTRO';this.introF=160;this.curSel=0},300)}
+            break;
+          }
+        }
+      }
+    });
     this._build();
     requestAnimationFrame(ts=>this._loop(ts));
     if('serviceWorker' in navigator)navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister()));
@@ -752,27 +787,9 @@ class Game{
     }
   }
   _charSelUpdate(){
-    const im=this.mim;
-    if(!this._selCd)this._selCd=0;
-    this._selCd=Math.max(0,this._selCd-1);
-    const canNav=this._selCd===0;
-    const left =canNav&&(im.pk(KB.l)||im.pk('GL')||this._selBtn==='L');
-    const right=canNav&&(im.pk(KB.r)||im.pk('GR')||this._selBtn==='R');
-    const atk  =im.pk(KB.a)||im.pk('GA')||TC.atk||this._selBtn==='A';
-    const btn=this._selBtn;
-    this._selBtn=null;TC.left=TC.right=TC.atk=false;
-    if(left||right) this._selCd=15;
-    if(this.curSel===0){
-      if(left) this.p1sel=(this.p1sel-1+this.chars.length)%this.chars.length;
-      if(right)this.p1sel=(this.p1sel+1)%this.chars.length;
-      if(atk)  {this.curSel=1;this._selCd=20}
-    } else {
-      if(left) this.p2sel=(this.p2sel-1+this.chars.length)%this.chars.length;
-      if(right)this.p2sel=(this.p2sel+1)%this.chars.length;
-      if(atk)  {this._build();this._reset();this.state='INTRO';this.introF=160;this.curSel=0}
-    }
+    // Géré entièrement par les taps canvas - rien à faire ici
   }
-  _fight(){
+    _fight(){
     if(++this.tf>=60){this.tf=0;this.timer--}
     if(this.timer<=0){this._endRound();return}
     this.p1.handleInput(this.p2);this.ai.tick(this.p1,this.pts);
@@ -836,103 +853,66 @@ class Game{
     ctx.restore();
   }
   _drawCharSel(ctx){
-    const T=this.T;
-    const phase=this.curSel; // 0=P1 choisit, 1=adversaire
-    const curIdx=phase===0?this.p1sel:this.p2sel;
-    const C=CHARS[this.chars[curIdx]];
-    const accentCol=phase===0?'#2ee8ff':'#ff5522';
-
-    // Fond full
+    const T=this.T,phase=this.curSel;
+    const acol=phase===0?'#2ee8ff':'#ff5522';
     ctx.fillStyle='#030010';ctx.fillRect(0,0,W,H);
-    // Gradient latéral de couleur perso
-    const bg=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*.7);
-    bg.addColorStop(0,C.col+'18');bg.addColorStop(1,'#030010');
-    ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
-    // Ligne déco haut
-    ctx.fillStyle=accentCol;ctx.fillRect(0,0,W,3);
-    ctx.shadowBlur=12;ctx.shadowColor=accentCol;ctx.fillRect(0,0,W,3);ctx.shadowBlur=0;
-
-    // Titre phase
+    // Titre
     ctx.save();ctx.textAlign='center';
-    ctx.font=`bold 13px 'Courier New',monospace`;ctx.fillStyle=accentCol;ctx.letterSpacing='4px';
-    ctx.fillText(phase===0?'— JOUEUR 1 —':'— ADVERSAIRE —',W/2,28);
-    ctx.font=`bold 28px Impact,sans-serif`;ctx.fillStyle='#fff';ctx.shadowBlur=14;ctx.shadowColor=accentCol;
-    ctx.fillText(phase===0?"CHOISISSEZ VOTRE PERSONNAGE":"CHOISISSEZ L'ADVERSAIRE",W/2,58);ctx.restore();
-
-    // Carte centrale (personnage selectionné)
-    const cx=W/2,cy=H/2+20;
-    // Halo
-    const halo=ctx.createRadialGradient(cx,cy,0,cx,cy,200);
-    halo.addColorStop(0,C.col+'22');halo.addColorStop(1,'transparent');
-    ctx.fillStyle=halo;ctx.beginPath();ctx.arc(cx,cy,200,0,Math.PI*2);ctx.fill();
-    // Cadre carte
-    ctx.fillStyle='rgba(8,0,28,.92)';ctx.strokeStyle=C.col;ctx.lineWidth=2;
-    ctx.shadowBlur=20;ctx.shadowColor=C.col;
-    ctx.beginPath();rr(ctx,cx-200,cy-155,400,310,14);ctx.fill();ctx.stroke();ctx.shadowBlur=0;
-    // Nom
-    ctx.save();ctx.textAlign='center';
-    ctx.font=`bold 42px Impact,sans-serif`;ctx.strokeStyle='#000';ctx.lineWidth=6;ctx.strokeText(C.name,cx,cy-95);
-    ctx.fillStyle=C.col;ctx.shadowBlur=18;ctx.shadowColor=C.glow;ctx.fillText(C.name,cx,cy-95);
-    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=C.glow;ctx.shadowBlur=0;ctx.fillText(C.sub,cx,cy-72);
-    // Séparateur
-    ctx.strokeStyle=C.col+'66';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cx-160,cy-58);ctx.lineTo(cx+160,cy-58);ctx.stroke();
-    // Capacités
-    ctx.font=`11px 'Courier New',monospace`;
-    C.desc.forEach((d,j)=>{
-      ctx.fillStyle=j===0?C.glow:j===1?'#aaddff':j===2?'#ffddaa':'#ffff88';
-      const icons=['⚡','🔥','❄️','★'];
-      ctx.fillText(icons[j%4]+' '+d,cx,cy-38+j*22);
+    ctx.font=`bold 28px Impact,sans-serif`;ctx.fillStyle='#fff';ctx.shadowBlur=14;ctx.shadowColor=acol;
+    ctx.fillText(phase===0?'TOI — CHOISIS TON PERSO':'ADVERSAIRE — CHOISIS',W/2,52);
+    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=acol;ctx.shadowBlur=0;
+    ctx.fillText('Appuie sur un personnage pour le choisir',W/2,76);ctx.restore();
+    // 3 cartes
+    const cw=240,ch=330,gap=30;
+    const totalW=this.chars.length*cw+(this.chars.length-1)*gap;
+    const startX=(W-totalW)/2;
+    this._cardZones=[];
+    this.chars.forEach((cn,i)=>{
+      const C=CHARS[cn];
+      const cx=startX+i*(cw+gap)+cw/2,cy=H/2+30;
+      const bx=cx-cw/2,by=cy-ch/2;
+      this._cardZones.push({bx,by,w:cw,h:ch,idx:i});
+      const hover=this._hoverIdx===i;
+      const pulse=hover?.85+Math.sin(T*6)*.15:1;
+      ctx.save();
+      // Halo
+      if(hover){const hl=ctx.createRadialGradient(cx,cy,0,cx,cy,140);hl.addColorStop(0,C.col+'33');hl.addColorStop(1,'transparent');ctx.fillStyle=hl;ctx.beginPath();ctx.arc(cx,cy,140,0,Math.PI*2);ctx.fill()}
+      // Carte
+      ctx.fillStyle=hover?'rgba(16,0,45,.95)':'rgba(8,0,24,.85)';
+      ctx.strokeStyle=hover?C.col:C.col+'55';ctx.lineWidth=hover?2.5:1.5;
+      ctx.shadowBlur=hover?22:0;ctx.shadowColor=C.col;
+      ctx.beginPath();rr(ctx,bx,by,cw,ch,14);ctx.fill();ctx.stroke();ctx.shadowBlur=0;
+      // Nom
+      ctx.textAlign='center';ctx.font=`bold 26px Impact,sans-serif`;
+      ctx.strokeStyle='#000';ctx.lineWidth=5;ctx.strokeText(C.name,cx,by+48);
+      ctx.fillStyle=C.col;ctx.shadowBlur=hover?12:0;ctx.shadowColor=C.glow;ctx.fillText(C.name,cx,by+48);
+      ctx.font=`10px 'Courier New',monospace`;ctx.fillStyle=C.glow;ctx.shadowBlur=0;ctx.fillText(C.sub,cx,by+66);
+      // Séparateur
+      ctx.strokeStyle=C.col+'44';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx+20,by+78);ctx.lineTo(bx+cw-20,by+78);ctx.stroke();
+      // Capacités
+      ctx.font=`10px 'Courier New',monospace`;
+      C.desc.forEach((d,j)=>{ctx.fillStyle=['#aaeeff','#ffaaaa','#aaffcc','#ffee88'][j];ctx.fillText(d,cx,by+100+j*22)});
+      // Barre HP
+      ctx.fillStyle='#1a0040';ctx.beginPath();rr(ctx,bx+20,by+ch-54,cw-40,10,3);ctx.fill();
+      ctx.fillStyle=C.col;ctx.shadowBlur=4;ctx.shadowColor=C.col;
+      ctx.beginPath();rr(ctx,bx+20,by+ch-54,(cw-40)*(C.hp/1000),10,3);ctx.fill();ctx.shadowBlur=0;
+      ctx.font=`9px 'Courier New',monospace`;ctx.fillStyle='#888';ctx.fillText('HP: '+C.hp,cx,by+ch-32);
+      // Bouton CHOISIR
+      ctx.fillStyle=hover?C.col+'cc':'rgba(20,0,50,.8)';ctx.strokeStyle=C.col;ctx.lineWidth=1.5;
+      ctx.beginPath();rr(ctx,bx+20,by+ch-26,cw-40,22,11);ctx.fill();ctx.stroke();
+      ctx.font=`bold 12px 'Courier New',monospace`;ctx.fillStyle='#fff';ctx.fillText('CHOISIR',cx,by+ch-10);
+      ctx.restore();
     });
-    // Barre HP
-    ctx.fillStyle='#1a0040';ctx.beginPath();rr(ctx,cx-150,cy+60,300,14,4);ctx.fill();
-    ctx.fillStyle=C.col;ctx.shadowBlur=6;ctx.shadowColor=C.col;ctx.beginPath();rr(ctx,cx-150,cy+60,300*(C.hp/1000),14,4);ctx.fill();ctx.shadowBlur=0;
-    ctx.fillStyle='#888';ctx.font=`10px 'Courier New',monospace`;ctx.fillText('HP : '+C.hp,cx,cy+88);
-    ctx.restore();
-
-    // Flèches gauche/droite avec les autres persos
-    const prev=(curIdx-1+this.chars.length)%this.chars.length;
-    const next=(curIdx+1)%this.chars.length;
-    const Cp=CHARS[this.chars[prev]],Cn=CHARS[this.chars[next]];
-    // Carte gauche
-    ctx.save();ctx.globalAlpha=.5;ctx.fillStyle='rgba(8,0,28,.8)';ctx.strokeStyle=Cp.col+'66';ctx.lineWidth=1.5;
-    ctx.beginPath();rr(ctx,50,cy-80,130,160,10);ctx.fill();ctx.stroke();
-    ctx.textAlign='center';ctx.font=`bold 16px Impact,sans-serif`;ctx.fillStyle=Cp.col;ctx.fillText(Cp.name,115,cy-40);
-    ctx.font=`9px 'Courier New',monospace`;ctx.fillStyle='#666';ctx.fillText(Cp.sub,115,cy-22);ctx.restore();
-    // Flèche gauche
-    ctx.save();ctx.fillStyle='#fff';ctx.font=`bold 28px Impact`;ctx.textAlign='center';ctx.globalAlpha=.6+Math.sin(T*3)*.25;ctx.fillText('◀',85,cy+8);ctx.restore();
-    // Carte droite
-    ctx.save();ctx.globalAlpha=.5;ctx.fillStyle='rgba(8,0,28,.8)';ctx.strokeStyle=Cn.col+'66';ctx.lineWidth=1.5;
-    ctx.beginPath();rr(ctx,W-180,cy-80,130,160,10);ctx.fill();ctx.stroke();
-    ctx.textAlign='center';ctx.font=`bold 16px Impact,sans-serif`;ctx.fillStyle=Cn.col;ctx.fillText(Cn.name,W-115,cy-40);
-    ctx.font=`9px 'Courier New',monospace`;ctx.fillStyle='#666';ctx.fillText(Cn.sub,W-115,cy-22);ctx.restore();
-    // Flèche droite
-    ctx.save();ctx.fillStyle='#fff';ctx.font=`bold 28px Impact`;ctx.textAlign='center';ctx.globalAlpha=.6+Math.sin(T*3+1)*.25;ctx.fillText('▶',W-85,cy+8);ctx.restore();
-
-    // Bouton confirmer
-    const pulse=.7+Math.sin(T*4)*.3;
-    ctx.save();ctx.globalAlpha=pulse;ctx.fillStyle=accentCol+'44';ctx.strokeStyle=accentCol;ctx.lineWidth=2;ctx.shadowBlur=14;ctx.shadowColor=accentCol;
-    ctx.beginPath();rr(ctx,W/2-100,H-58,200,36,18);ctx.fill();ctx.stroke();
-    ctx.textAlign='center';ctx.font=`bold 14px 'Courier New',monospace`;ctx.fillStyle='#fff';ctx.shadowBlur=8;
-    ctx.fillText(phase===0?'CONFIRMER  →':'LANCER LE COMBAT  ⚔',W/2,H-34);ctx.restore();
-
-    // Si P1 déjà choisi
+    // Déjà choisi
     if(phase===1){
       const C1=CHARS[this.chars[this.p1sel]];
-      ctx.save();ctx.textAlign='left';ctx.font=`bold 11px 'Courier New',monospace`;
-      ctx.fillStyle=C1.col;ctx.shadowBlur=6;ctx.shadowColor=C1.glow;
-      ctx.fillText('TON PERSO : '+C1.name,28,H-12);ctx.restore();
-    }
-    // Touches clavier
-    ctx.save();ctx.textAlign='right';ctx.font=`9px 'Courier New',monospace`;ctx.fillStyle='#3a2060';
-    ctx.fillText('Q/D = naviguer   R = confirmer',W-20,H-8);ctx.restore();
-
-    // Boutons tactiles charsel (invisibles pour input)
-    if(!this._csEl){
-      this._csEl=true;
-      // On crée des zones tactiles invisibles
+      ctx.save();ctx.fillStyle='rgba(8,0,24,.8)';ctx.strokeStyle=C1.col+'80';ctx.lineWidth=1;
+      ctx.beginPath();rr(ctx,14,H-34,180,22,6);ctx.fill();ctx.stroke();
+      ctx.font=`bold 11px 'Courier New',monospace`;ctx.fillStyle=C1.col;ctx.shadowBlur=6;ctx.shadowColor=C1.glow;
+      ctx.fillText('TON PERSO : '+C1.name,24,H-18);ctx.restore();
     }
   }
-  _drawIntro(ctx){
+    _drawIntro(ctx){
     const p=1-this.introF/160;ctx.fillStyle='rgba(1,0,14,.55)';ctx.fillRect(0,0,W,H);
     const a=Math.min(1,p*2.8),os=Math.max(0,1-p*2)*80;
     ctx.save();ctx.globalAlpha=a;ctx.font=`bold 32px 'Courier New',monospace`;
