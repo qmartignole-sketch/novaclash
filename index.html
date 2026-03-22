@@ -515,6 +515,12 @@ class Fighter{
     }
     ctx.save();
     if(this.hf>0&&this.hf%2===0)ctx.filter='brightness(8) saturate(0)';
+    else if(this.st===S.SUP){
+      // Super: draw twice — glow copy then normal
+      ctx.save();ctx.globalAlpha=0.35+Math.sin(T*18)*.15;
+      ctx.filter=`drop-shadow(0 0 8px ${this.C.glow})`;
+      this._drawChar(ctx,this.x+Math.sin(T*22)*3,this.y,this.fr,T,true);ctx.restore();
+    }
     else if(this.inv>0&&this.inv%3===0)ctx.globalAlpha=0.4;
     this._drawChar(ctx,this.x,this.y,this.fr,T,false);
     ctx.restore();
@@ -523,28 +529,39 @@ class Fighter{
 
   _drawChar(ctx,x,y,fr,T,ghost){
     const C=this.C,d=fr?1:-1,st=this.st,t=this.sT;
-    // Pose derived params
     let lean=0,squat=0,armAng=0,legAng=0,stretch=0,jumpFloat=0;
     const ib=Math.sin(T*2)*2.5;
+    // ── Attack direction arrow (shows which way the hit goes) ──
+    if(!ghost&&this.isAtk()&&this.mv){
+      const mv=this.mv;
+      if(t>=mv.su&&t<mv.su+mv.ac){
+        const ax=x+d*60,ay=y-this.h*.55;
+        ctx.save();ctx.globalAlpha=0.75;
+        ctx.strokeStyle=C.glow;ctx.lineWidth=3;ctx.shadowBlur=10;ctx.shadowColor=C.glow;
+        ctx.beginPath();ctx.moveTo(ax-d*18,ay);ctx.lineTo(ax+d*18,ay);
+        ctx.moveTo(ax+d*10,ay-8);ctx.lineTo(ax+d*18,ay);ctx.lineTo(ax+d*10,ay+8);
+        ctx.stroke();ctx.restore();
+      }
+    }
     switch(st){
       case S.IDLE:   lean=0;break;
-      case S.WF:     lean=d*7;legAng=Math.sin(T*9)*20;armAng=Math.sin(T*9)*18;break;
-      case S.WB:     lean=-d*5;legAng=Math.sin(T*8)*14;armAng=Math.sin(T*8)*13;break;
-      case S.CR:case S.BL:case S.CL:case S.CM:case S.CH: squat=26;lean=d*3;break;
-      case S.JU:case S.JF:case S.JB: stretch=-8;lean=d*6;armAng=-30;legAng=-14;jumpFloat=-6;break;
-      case S.JA:     stretch=-5;armAng=d*65;legAng=10;jumpFloat=-4;break;
-      case S.LP:     lean=d*(t<5?18:4);armAng=d*(t<5?72:10);break;
-      case S.MP:     lean=d*(t<8?28:8);armAng=d*(t<8?100:15);break;
-      case S.HP:     lean=d*(t<11?38:12);armAng=d*(t<11?128:22);break;
-      case S.BH:     lean=-d*8;armAng=-22;break;
+      case S.WF:     lean=d*7;legAng=Math.sin(T*9)*22;armAng=Math.sin(T*9)*20;break;
+      case S.WB:     lean=-d*5;legAng=Math.sin(T*8)*16;armAng=Math.sin(T*8)*14;break;
+      case S.CR:case S.BL:case S.CL:case S.CM:case S.CH: squat=28;lean=d*4;break;
+      case S.JU:case S.JF:case S.JB: stretch=-10;lean=d*8;armAng=-35;legAng=-18;jumpFloat=-8;break;
+      case S.JA:     stretch=-6;armAng=d*75;legAng=14;jumpFloat=-5;break;
+      case S.LP:     lean=d*(t<5?22:5);armAng=d*(t<5?80:12);break;
+      case S.MP:     lean=d*(t<8?32:9);armAng=d*(t<8?110:18);break;
+      case S.HP:     lean=d*(t<11?44:14);armAng=d*(t<11?135:25);break;
+      case S.BH:     lean=-d*10;armAng=-26;break;
       case S.SP1:
-        if(this.cn==='KIRA'){lean=d*26;armAng=d*40}
-        else{lean=d*10;armAng=d*(t<12?60:12)}break;
-      case S.SP2:    stretch=t<8?-16:-6;armAng=d*(-32);break;
-      case S.SP3:    squat=14;lean=d*28;legAng=d*50;break;
-      case S.SUP:    lean=d*(Math.sin(T*16)*4);armAng=95+Math.sin(T*12)*22;break;
-      case S.HIT:    lean=-d*28;break;
-      case S.KD:case S.KO: lean=-d*100;squat=40;break;
+        if(this.cn==='KIRA'){lean=d*28;armAng=d*45}
+        else{lean=d*12;armAng=d*(t<12?65:14)}break;
+      case S.SP2:    stretch=t<8?-20:-8;armAng=d*(t<8?-20:-40);lean=d*(t<8?8:2);break;
+      case S.SP3:    squat=16;lean=d*32;legAng=d*55;break;
+      case S.SUP:    lean=d*(Math.sin(T*16)*5);armAng=100+Math.sin(T*12)*28;stretch=-4;break;
+      case S.HIT:    lean=-d*32;break;
+      case S.KD:case S.KO: lean=-d*105;squat=42;break;
     }
     const base=y-4+ib+jumpFloat;
     const TH=52-squat*.4; // torso height
@@ -552,8 +569,22 @@ class Fighter{
 
     ctx.save();
     ctx.translate(x,base);
-    if(!ghost&&this.st===S.SUP){
-      ctx.shadowBlur=30;ctx.shadowColor=C.glow;
+    // Special state glow
+    if(!ghost){
+      if(this.st===S.SUP){ctx.shadowBlur=30;ctx.shadowColor=C.glow}
+      else if(this.st===S.SP2){ctx.shadowBlur=20;ctx.shadowColor='#ff8820'} // uppercut = orange
+      else if(this.st===S.SP1){ctx.shadowBlur=16;ctx.shadowColor=C.glow}    // fireball = char color
+      else if(this.st===S.SP3){ctx.shadowBlur=16;ctx.shadowColor=C.col}
+    }
+    // SP2 uppercut: draw rising flame/energy column
+    if(!ghost&&this.st===S.SP2&&t<20){
+      const ht=(t/20)*80;
+      ctx.save();ctx.globalAlpha=0.5*(1-t/20);
+      const g=ctx.createLinearGradient(0,0,0,-ht);
+      g.addColorStop(0,C.col);g.addColorStop(1,'#fff0');
+      ctx.fillStyle=g;ctx.shadowBlur=18;ctx.shadowColor=C.glow;
+      ctx.beginPath();ctx.ellipse(d*10,-ht*.5,12,ht*.5,0,0,Math.PI*2);ctx.fill();
+      ctx.restore();
     }
 
     // ── Ground shadow ──
@@ -1050,8 +1081,16 @@ class Game{
     if(++this.tf>=60){this.tf=0;this.timer--}
     if(this.timer<=0){this._endRound();return}
     this.p1.handleInput(this.p2);this.ai.tick(this.p1,this.pts);
-    if(this.p1.st===S.SUP&&this.p1.sT===20){this.sfx.slow(90);this.sfx.flash(this.p1.C.col,.7,16);this.sfx.shake(11,25)}
-    if(this.p2.st===S.SUP&&this.p2.sT===18){this.sfx.slow(90);this.sfx.flash(this.p2.C.col,.7,16);this.sfx.shake(11,25)}
+    // Super VFX
+    if(this.p1.st===S.SUP&&this.p1.sT===2){this.sfx.slow(90);this.sfx.flash(this.p1.C.col,.65,16);this.sfx.shake(11,25);this._spLabel('SUPER !',this.p1.C.col)}
+    if(this.p2.st===S.SUP&&this.p2.sT===2){this.sfx.slow(90);this.sfx.flash(this.p2.C.col,.65,16);this.sfx.shake(11,25);this._spLabel('SUPER !',this.p2.C.col)}
+    // Special move labels
+    if(this.p1.st===S.SP1&&this.p1.sT===2)this._spLabel('FIREBALL !',this.p1.C.col);
+    if(this.p1.st===S.SP2&&this.p1.sT===2)this._spLabel('UPPERCUT !','#ff8820');
+    if(this.p1.st===S.SP3&&this.p1.sT===2)this._spLabel('SPÉCIAL !',this.p1.C.col);
+    if(this.p2.st===S.SP1&&this.p2.sT===2)this._spLabel('FIREBALL !',this.p2.C.col);
+    if(this.p2.st===S.SP2&&this.p2.sT===2)this._spLabel('UPPERCUT !','#ff8820');
+    if(this.p2.st===S.SP3&&this.p2.sT===2)this._spLabel('SPÉCIAL !',this.p2.C.col);
     const skip=this.sfx.slowing&&Math.random()<.52;
     if(!skip){this.p1.tick(this.p2,this.pts);this.p2.tick(this.p1,this.pts)}
     hitCheck(this.p1,this.p2,this.pts,this.sfx);hitCheck(this.p2,this.p1,this.pts,this.sfx);
@@ -1061,10 +1100,14 @@ class Game{
   }
   _endRound(){
     if(this.state!=='FIGHT')return;
-    if(this.p1.hp>this.p2.hp){this.p1w++;this.ann('P1 GAGNE !',this.p1.C.col,200)}
-    else if(this.p2.hp>this.p1.hp){this.p2w++;this.ann('DÉFAITE !',this.p2.C.col,200)}
-    else this.ann('ÉGALITÉ !','#ffa020',180);
-    this.sfx.shake(14,22);this.sfx.flash('#fff',.45,10);this.state='RE';this.reF=200;
+    this.state='RE';this.reF=200;
+    // Snapshot HP at moment of KO — prevents hitStop double-trigger
+    const hp1=Math.max(0,this.p1.hp),hp2=Math.max(0,this.p2.hp);
+    if(hp1>hp2){this.p1w++;this.ann('TU GAGNES !',this.p1.C.col,220)}
+    else if(hp2>hp1){this.p2w++;this.ann('DÉFAITE !',this.p2.C.col,220)}
+    else this.ann('ÉGALITÉ !','#ffa020',200);
+    this.sfx.shake(14,22);this.sfx.flash('#fff',.45,10);
+    this.sfx.hitStop=0; // cancel hitstop so we don't re-enter
   }
   _draw(){
     const ctx=this.ctx;
@@ -1080,6 +1123,16 @@ class Game{
     this.sfx.drawFlash(ctx);
     if(this.state!=='MENU') this.ui.draw(ctx,this.p1,this.p2,this.timer,this.p1w,this.p2w,this.mr,this.T);
     if(this.annF>0){const a=this.annF>30?1:this.annF/30;ctx.save();ctx.globalAlpha=a;this.ui.bigText(ctx,this.annT,W/2,H/2+24,this.annC);ctx.restore()}
+    // Special move label
+    if(this._splTimer>0){
+      this._splTimer--;
+      const sa=Math.min(1,this._splTimer/8)*Math.min(1,(this._splTimer)/40*2);
+      ctx.save();ctx.globalAlpha=sa;ctx.textAlign='center';
+      ctx.font=`bold 32px Impact,sans-serif`;ctx.strokeStyle='#000';ctx.lineWidth=5;
+      ctx.strokeText(this._splTxt||'',W/2,160);
+      ctx.fillStyle=this._splCol||'#fff';ctx.shadowBlur=18;ctx.shadowColor=this._splCol||'#fff';
+      ctx.fillText(this._splTxt||'',W/2,160);ctx.restore();
+    }
     this._debug(ctx);
     switch(this.state){
       case 'MENU': this._menu(ctx);break;
@@ -1087,6 +1140,7 @@ class Game{
       case 'ME': this._matchEnd(ctx);break;
     }
   }
+  _spLabel(txt,col){this._splTxt=txt;this._splCol=col;this._splTimer=40}
   _superAura(f){
     const ctx=this.ctx,C=f.C,T=this.T;
     ctx.save();
