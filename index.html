@@ -22,64 +22,24 @@ const S={IDLE:'I',WF:'WF',WB:'WB',CR:'CR',JU:'JU',JF:'JF',JB:'JB',
   SP1:'S1',SP2:'S2',SP3:'S3',SUP:'SU',
   BH:'BH',BL:'BL',HIT:'HT',KD:'KD',GU:'GU',KO:'KO'};
 
-// ── Input (clavier + manette DualSense) ─────────────────────
-// Utilise les events gamepad au lieu de getGamepads() polling
-// pour eviter la SecurityError dans les iframes
-const _gpStore={pad:null};
-window.addEventListener('gamepadconnected',   e=>{_gpStore.pad=e.gamepad});
-window.addEventListener('gamepaddisconnected',e=>{_gpStore.pad=null});
-
+// ── Input ────────────────────────────────────────────────────
 class Input{
-  constructor(){
-    this.h=new Set();this.p=new Set();this._b=new Set();
-    this._gpPrev={};
+  constructor(){this.h=new Set();this.p=new Set();this._b=new Set();
     window.addEventListener('keydown',e=>{if(!this.h.has(e.code))this._b.add(e.code);this.h.add(e.code);e.preventDefault()});
     window.addEventListener('keyup',e=>this.h.delete(e.code));
   }
-  _gp(){
-    // Rafraichit la reference depuis le store (les objets Gamepad sont des snapshots)
-    if(!_gpStore.pad) return null;
-    try{
-      const gps=navigator.getGamepads();
-      for(const g of gps) if(g&&g.index===_gpStore.pad.index) return g;
-    }catch(e){}
-    return null;
-  }
-  flush(){
-    this.p=new Set(this._b);this._b.clear();
-    const g=this._gp();if(!g)return;
-    const map={
-      'GP_LEFT': g.axes[0]<-0.5||!!g.buttons[14]?.pressed,
-      'GP_RIGHT':g.axes[0]> 0.5||!!g.buttons[15]?.pressed,
-      'GP_UP':   g.axes[1]<-0.5||!!g.buttons[12]?.pressed,
-      'GP_DOWN': g.axes[1]> 0.5||!!g.buttons[13]?.pressed,
-      'GP_ATK':  !!g.buttons[1]?.pressed,  // Rond = attaquer
-      'GP_JUMP': !!g.buttons[0]?.pressed,  // Croix = sauter
-      'GP_SP2':  !!g.buttons[5]?.pressed,  // R1 = uppercut
-      'GP_SP3':  !!g.buttons[3]?.pressed,  // Triangle = special bas
-      'GP_SUP':  !!g.buttons[7]?.pressed,  // R2 = SUPER
-      'GP_START':!!g.buttons[9]?.pressed,  // Options
-    };
-    for(const[k,v] of Object.entries(map)){
-      if(v&&!this._gpPrev[k]){this._b.add(k);this.h.add(k)}
-      else if(!v){this.h.delete(k)}
-    }
-    this._gpPrev={...map};
-  }
+  flush(){this.p=new Set(this._b);this._b.clear()}
   hk(k){return this.h.has(k)} pk(k){return this.p.has(k)}
-  get hasGamepad(){return !!_gpStore.pad}
 }
 // AZERTY keys
-const KB={left:'KeyQ',right:'KeyD',up:'KeyZ',down:'KeyS',atk:'KeyR'};
-// Gamepad virtual keys
-const GP={left:'GP_LEFT',right:'GP_RIGHT',up:'GP_UP',down:'GP_DOWN',atk:'GP_ATK',jump:'GP_JUMP',sp2:'GP_SP2',sp3:'GP_SP3',sup:'GP_SUP',start:'GP_START'};
+const KB={left:'KeyQ',right:'KeyD',up:'KeyZ',down:'KeyS',lp:'KeyA',mp:'KeyE',hp:'KeyR'};
 
 // Simple combo buffer: detect near-simultaneous presses for specials
 class SpecialBuf{
   constructor(im){this.im=im;this.buf=[];this.f=0}
   tick(){
     this.f++;
-    const keys=['KeyZ','KeyS','KeyR','GP_UP','GP_DOWN','GP_ATK'];
+    const keys=['KeyZ','KeyS','KeyA','KeyE','KeyR'];
     for(const k of keys) if(this.im.pk(k)) this.buf.push({k,f:this.f});
     if(this.buf.length>20) this.buf=this.buf.slice(-20);
   }
@@ -287,47 +247,43 @@ class Fighter{
     return true;
   }
 
-  // ── Human input — Clavier AZERTY ou Manette DualSense ──
+  // ── Human input ──
   handleInput(opp){
     if(!this.isHuman)return;
-    const im=this.im,sb=this.sb;
+    const im=this.im,sb=this.sb,k=KB;
     im.flush();sb.tick();
     if(this.isKO()||this.isHurt())return;
     if(this.isAtk()){const m=this.mv;if(m&&this.sT<m.su+m.ac+m.re)return;if(this.grnd)this.go(S.IDLE);return}
-    // Directions — clavier OU manette
-    const dn =im.hk(KB.down) ||im.hk(GP.down);
-    const up_ =im.hk(KB.up)  ||im.hk(GP.up);
-    const lft =im.hk(KB.left) ||im.hk(GP.left);
-    const rgt =im.hk(KB.right)||im.hk(GP.right);
-    // Boutons attaque
-    const atkP=im.pk(KB.atk) ||im.pk(GP.atk);
-    const supP=im.pk(GP.sup);             // R1 = SUPER direct
-    const sp2P=im.pk(GP.sp2);             // Rond = uppercut direct
-    const sp3P=im.pk(GP.sp3);             // Triangle = special bas direct
-    const jupP=im.pk(GP.jump);            // Croix = sauter
-    const fwd=this.fr?rgt:lft,bck=this.fr?lft:rgt;
+    const D=im.hk(k.down),U=im.hk(k.up),L=im.hk(k.left),R=im.hk(k.right);
+    const lpP=im.pk(k.lp),mpP=im.pk(k.mp),hpP=im.pk(k.hp);
+    const anyP=lpP||mpP||hpP;
+    const fwd=this.fr?R:L,bck=this.fr?L:R;
 
-    // SUPER direct (R1 manette ou Z+S+R clavier)
-    if((supP||(atkP&&sb.hasAll(['KeyZ','KeyS','KeyR'],12)))&&this.en>=this.C.eCost){
+    // SUPER: A+E+R (toutes)
+    if((lpP||mpP||hpP)&&sb.hasAll(['KeyA','KeyE','KeyR'],10)&&this.en>=this.C.eCost){
       sb.clear();this.go(S.SUP);return;
     }
-    // Uppercut direct (Rond manette ou Z+R clavier)
-    if(sp2P||(atkP&&sb.hasAll(['KeyZ','KeyR'],10))){
-      sb.clear();this.go(S.SP2);return;
-    }
-    // Special bas (Triangle manette ou S+R clavier)
-    if(sp3P||(atkP&&dn)){sb.clear();this._sp3();return}
-    // Attaque saut
-    if(atkP&&this.air){this.go(S.JA);return}
-    // Attaque sol
-    if(atkP&&this.grnd){this.go(S.HP);return}
-    // Garde : tenir direction arriere
-    if(this.grnd&&bck){this.go(dn?S.BL:S.BH);return}
+    // SP1: Z+A (saut+léger)
+    if(lpP&&sb.hasAll(['KeyZ','KeyA'],8)){sb.clear();this._sp1();return}
+    // SP2: Z+E (saut+moyen = uppercut)
+    if(mpP&&sb.hasAll(['KeyZ','KeyE'],8)){sb.clear();this.go(S.SP2);return}
+    // SP3: S+R (accroupi+lourd)
+    if(hpP&&D){sb.clear();this._sp3();return}
+    // Attaques normales
+    if(this.grnd){
+      if(D&&hpP){this.go(S.CH);return}
+      if(D&&mpP){this.go(S.CM);return}
+      if(D&&lpP){this.go(S.CL);return}
+      if(hpP){this.go(S.HP);return}
+      if(mpP){this.go(S.MP);return}
+      if(lpP){this.go(S.LP);return}
+    } else if(anyP){this.go(S.JA);return}
+    // Garde
+    if(this.grnd&&bck){this.go(D?S.BL:S.BH);return}
     // Mouvements
     if(this.grnd){
-      const jmp=up_||jupP;
-      if(jmp){this._jump(fwd,bck);return}
-      if(dn){this.go(S.CR);return}
+      if(U){this._jump(fwd,bck);return}
+      if(D){this.go(S.CR);return}
       if(fwd){this.go(S.WF);return}
       if(bck){this.go(S.WB);return}
       this.go(S.IDLE);
@@ -883,12 +839,6 @@ class Game{
   constructor(){
     const cv=document.getElementById('c');
     cv.width=W;cv.height=H;
-    // Pointer Lock — capture le curseur pour liberer le stick
-    const _lock=()=>{cv.requestPointerLock=cv.requestPointerLock||cv.mozRequestPointerLock||cv.webkitRequestPointerLock;if(cv.requestPointerLock)cv.requestPointerLock()};
-    cv.addEventListener('click',_lock);
-    window.addEventListener('gamepadconnected',_lock);
-    // Re-capturer si on perd le lock
-    document.addEventListener('pointerlockchange',()=>{if(!document.pointerLockElement)setTimeout(_lock,800)});
     const sc=Math.min(window.innerWidth/W,window.innerHeight/H);
     cv.style.width=W*sc+'px';cv.style.height=H*sc+'px';
     this.ctx=cv.getContext('2d');
@@ -919,11 +869,11 @@ class Game{
   }
   _update(){
     switch(this.state){
-      case 'MENU':if(this.mim.p.size>0||this.mim.pk('GP_START')||this.mim.pk('GP_ATK')||this.mim.pk('GP_JUMP')){this.state='INTRO';this.introF=160;this._reset()}break;
+      case 'MENU':if(this.mim.p.size>0){this.state='INTRO';this.introF=160;this._reset()}break;
       case 'INTRO':if(--this.introF<=0){this.state='FIGHT';this.ann('FIGHT !','#ffe020',55)}break;
       case 'FIGHT':this._fight();break;
       case 'RE':if(--this.reF<=0){if(this.p1w>=Math.ceil(this.mr/2)||this.p2w>=Math.ceil(this.mr/2)){this.state='ME'}else{this.round++;this.state='INTRO';this.introF=130;this._reset()}}break;
-      case 'ME':if(this.mim.p.size>0||this.mim.pk('GP_START')||this.mim.pk('GP_ATK')||this.mim.pk('GP_JUMP')){this.round=1;this.p1w=0;this.p2w=0;this._build();this.state='INTRO';this.introF=140;this._reset()}break;
+      case 'ME':if(this.mim.p.size>0){this.round=1;this.p1w=0;this.p2w=0;this._build();this.state='INTRO';this.introF=140;this._reset()}break;
     }
   }
   _fight(){
@@ -1021,22 +971,17 @@ class Game{
     ctx.beginPath();ctx.arc(flip?bx+16:bx+bw-16,y+30,10,0,Math.PI*2);ctx.fill();ctx.restore();
   }
   _controls(ctx){
-    const gp=this.p1.im&&this.p1.im.hasGamepad;
     ctx.save();ctx.textAlign='center';
-    ctx.fillStyle='rgba(10,0,30,.65)';ctx.strokeStyle=gp?'#40c080':'#4030a0';ctx.lineWidth=1.5;
+    // Box
+    ctx.fillStyle='rgba(10,0,30,.65)';ctx.strokeStyle='#4030a0';ctx.lineWidth=1;
     ctx.beginPath();rr(ctx,W/2-280,330,560,88,6);ctx.fill();ctx.stroke();
-    ctx.font=`bold 11px 'Courier New',monospace`;
-    ctx.fillStyle=gp?'#60ffaa':'#aa88ff';
-    ctx.fillText(gp?'MANETTE DETECTEE — DualSense':'CONTROLES CLAVIER (AZERTY) / MANETTE',W/2,350);
+    ctx.font=`bold 11px 'Courier New',monospace`;ctx.fillStyle='#aa88ff';
+    ctx.fillText('CONTRÔLES JOUEUR 1 (AZERTY)',W/2,350);
     ctx.font=`10px 'Courier New',monospace`;ctx.fillStyle='#8878cc';
-    const lines=gp?[
-      'Directionnel / stick gauche : bouger',
-      'Carre: attaquer  |  Croix: sauter  |  Rond: uppercut  |  Triangle: special',
-      'R1: SUPER (quand barre etoile pleine)',
-    ]:[
-      'Clavier: Q/D=bouger  Z=sauter  S=accroupir  R=attaquer',
-      'Uppercut: Z+R   |   Special: S+R   |   SUPER: Z+S+R (jauge pleine)',
-      'Branchez une manette pour jouer a la DualSense !',
+    const lines=[
+      'Bouger: Z/Q/S/D   |   Attaque: A (léger)  E (moyen)  R (lourd)',
+      'Spécial 1: Z+A  |  Spécial 2 (uppercut): Z+E  |  Spécial 3: S+R',
+      'SUPER: A+E+R simultanément  (quand barre ★ pleine)',
     ];
     lines.forEach((l,i)=>ctx.fillText(l,W/2,366+i*14));
     ctx.restore();
