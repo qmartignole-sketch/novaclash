@@ -272,33 +272,69 @@ function _startMultiGame(){
 }
 
 function _showWaitingForOpponent(){
-  const overlay=document.getElementById('matchmaking');
-  overlay.style.display='flex';
-  document.getElementById('mm-timer').textContent='⏳';
-  document.getElementById('mm-found').style.display='none';
-  _setStatus("En attente du choix de l'adversaire...");
-  document.getElementById('mm-cancel').style.display='none';
-  document.getElementById('mm-code').style.display='none';
-  const ring=document.getElementById('mm-ring');
-  if(ring){const c=ring.getContext('2d');c.clearRect(0,0,120,120)}
+  let el=document.getElementById('mp-waiting');
+  if(!el){
+    el=document.createElement('div');
+    el.id='mp-waiting';
+    el.style.cssText='display:none;position:fixed;inset:0;background:linear-gradient(160deg,#020010,#04001a);z-index:998;flex-direction:column;align-items:center;justify-content:center;font-family:"Courier New",monospace;text-align:center';
+    el.innerHTML='<div style="font-family:Impact,sans-serif;font-size:28px;color:#22ff88;text-shadow:0 0 18px #22ff88;margin-bottom:16px">PERSONNAGE CHOISI ✓</div>'
+      +'<div id="mp-wait-status" style="color:#aaa;font-size:14px;margin-bottom:32px">En attente de l adversaire...</div>'
+      +'<div style="width:60px;height:60px;border:4px solid #22ff8833;border-top-color:#22ff88;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:28px" id="mp-spinner"></div>'
+      +'<div id="mp-wait-chars" style="display:flex;gap:24px;margin-top:8px"></div>'
+      +'<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+    document.body.appendChild(el);
+  }
+  el.style.display='flex';
+  const ckeys=Object.keys(CHARS);
+  const mine=CHARS[ckeys[_mp.myChar]||ckeys[0]];
+  const waitChars=document.getElementById('mp-wait-chars');
+  if(waitChars&&mine){
+    waitChars.innerHTML='<div style="text-align:center"><div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">TOI</div><div style="font-family:Impact;font-size:22px;color:'+mine.col+';text-shadow:0 0 10px '+mine.glow+'">'+mine.name+'</div></div>'
+      +'<div style="font-size:28px;color:#333;align-self:center">VS</div>'
+      +'<div style="text-align:center"><div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">ADVERSAIRE</div><div style="font-family:Impact;font-size:22px;color:#666">???</div></div>';
+  }
+}
+function _hideWaitingForOpponent(){
+  const el=document.getElementById('mp-waiting');
+  if(el)el.style.display='none';
 }
 
 function _launchMulti(){
-  const overlay=document.getElementById('matchmaking');
-  if(overlay)overlay.style.display='none';
-  const charsel=document.getElementById('charsel');
-  if(charsel)charsel.style.display='none';
   const g=window._game;if(!g)return;
   const ckeys=Object.keys(CHARS);
   const host=_mp.isHost;
-  // Host = P1 (left), Client = P2 (right)
   const p1char=host?ckeys[_mp.myChar]:ckeys[_mp.oppChar];
   const p2char=host?ckeys[_mp.oppChar]:ckeys[_mp.myChar];
-  g._buildWith(p1char,p2char);g._reset();
-  g._multiMode=true;
-  g._multiIsHost=host;
-  g.p1.im=g.p1.im||new Input(); // ensure P1 has input
-  g.state='INTRO';g.introF=160;
+  // Update waiting screen to show opponent char
+  const waitChars=document.getElementById('mp-wait-chars');
+  const opp=CHARS[host?ckeys[_mp.oppChar]:ckeys[_mp.myChar]];
+  if(waitChars&&opp){
+    waitChars.innerHTML=`
+      <div style="text-align:center">
+        <div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">TOI</div>
+        <div style="font-family:Impact;font-size:22px;color:${CHARS[host?ckeys[_mp.myChar]:ckeys[_mp.oppChar]].col}">${CHARS[host?ckeys[_mp.myChar]:ckeys[_mp.oppChar]].name}</div>
+      </div>
+      <div style="font-size:28px;color:#22ff88;align-self:center">VS</div>
+      <div style="text-align:center">
+        <div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">ADVERSAIRE</div>
+        <div style="font-family:Impact;font-size:22px;color:${opp.col};text-shadow:0 0 10px ${opp.glow}">${opp.name}</div>
+      </div>`;
+    // Update status text
+    const status=document.querySelector('#mp-waiting div:nth-child(2)');
+    if(status)status.textContent='Adversaire prêt ! Lancement...';
+    // Remove spinner
+    const spinner=document.querySelector('#mp-waiting div:nth-child(3)');
+    if(spinner)spinner.style.display='none';
+  }
+  // Launch after brief VS display
+  setTimeout(()=>{
+    _hideWaitingForOpponent();
+    const overlay=document.getElementById('matchmaking');if(overlay)overlay.style.display='none';
+    const charsel=document.getElementById('charsel');if(charsel)charsel.style.display='none';
+    g._buildWith(p1char,p2char);g._reset();
+    g._multiMode=true;g._multiIsHost=host;
+    g.state='INTRO';g.introF=160;
+  },1500);
 }
 
 function _cancelMatchmaking(){
@@ -1700,21 +1736,41 @@ function _showWaitingForOpponent(){
 }
 
 function _launchMulti(){
-  const overlay=document.getElementById('matchmaking');
-  if(overlay)overlay.style.display='none';
-  const charsel=document.getElementById('charsel');
-  if(charsel)charsel.style.display='none';
   const g=window._game;if(!g)return;
   const ckeys=Object.keys(CHARS);
   const host=_mp.isHost;
-  // Host = P1 (left), Client = P2 (right)
   const p1char=host?ckeys[_mp.myChar]:ckeys[_mp.oppChar];
   const p2char=host?ckeys[_mp.oppChar]:ckeys[_mp.myChar];
-  g._buildWith(p1char,p2char);g._reset();
-  g._multiMode=true;
-  g._multiIsHost=host;
-  g.p1.im=g.p1.im||new Input(); // ensure P1 has input
-  g.state='INTRO';g.introF=160;
+  // Update waiting screen to show opponent char
+  const waitChars=document.getElementById('mp-wait-chars');
+  const opp=CHARS[host?ckeys[_mp.oppChar]:ckeys[_mp.myChar]];
+  if(waitChars&&opp){
+    waitChars.innerHTML=`
+      <div style="text-align:center">
+        <div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">TOI</div>
+        <div style="font-family:Impact;font-size:22px;color:${CHARS[host?ckeys[_mp.myChar]:ckeys[_mp.oppChar]].col}">${CHARS[host?ckeys[_mp.myChar]:ckeys[_mp.oppChar]].name}</div>
+      </div>
+      <div style="font-size:28px;color:#22ff88;align-self:center">VS</div>
+      <div style="text-align:center">
+        <div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">ADVERSAIRE</div>
+        <div style="font-family:Impact;font-size:22px;color:${opp.col};text-shadow:0 0 10px ${opp.glow}">${opp.name}</div>
+      </div>`;
+    // Update status text
+    const status=document.querySelector('#mp-waiting div:nth-child(2)');
+    if(status)status.textContent='Adversaire prêt ! Lancement...';
+    // Remove spinner
+    const spinner=document.querySelector('#mp-waiting div:nth-child(3)');
+    if(spinner)spinner.style.display='none';
+  }
+  // Launch after brief VS display
+  setTimeout(()=>{
+    _hideWaitingForOpponent();
+    const overlay=document.getElementById('matchmaking');if(overlay)overlay.style.display='none';
+    const charsel=document.getElementById('charsel');if(charsel)charsel.style.display='none';
+    g._buildWith(p1char,p2char);g._reset();
+    g._multiMode=true;g._multiIsHost=host;
+    g.state='INTRO';g.introF=160;
+  },1500);
 }
 
 function _cancelMatchmaking(){
