@@ -94,13 +94,7 @@ canvas{display:block;image-rendering:pixelated;touch-action:none}
   <div id="mm-found" style="display:none;color:#22ff88;font-size:16px;font-family:Impact;letter-spacing:2px"></div>
   <button id="mm-cancel" style="margin-top:20px;padding:10px 24px;border-radius:8px;border:1px solid #ff444466;background:rgba(20,0,0,.8);color:#ff6666;font-family:'Courier New';font-size:12px;cursor:pointer">ANNULER</button>
 </div>
-<div id="multi-charsel" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#030010,#05001a);z-index:1000;font-family:'Courier New',monospace;overflow-y:auto">
-  <div style="text-align:center;padding:20px 0 8px">
-    <div id="mcs-title" style="font-family:Impact,sans-serif;font-size:26px;color:#22ff88;text-shadow:0 0 16px #22ff88;letter-spacing:2px">CHOISIS TON PERSONNAGE</div>
-    <div id="mcs-role" style="color:#666;font-size:11px;letter-spacing:3px;margin-top:4px"></div>
-  </div>
-  <div id="mcs-cards" style="display:flex;flex-wrap:wrap;justify-content:center;gap:14px;padding:12px 14px 20px"></div>
-</div>
+
 <div id="multi-wait" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#030010,#05001a);z-index:1000;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;text-align:center">
   <div style="font-family:Impact;font-size:26px;color:#22ff88;text-shadow:0 0 16px #22ff88;margin-bottom:12px">EN ATTENTE...</div>
   <div id="mw-status" style="color:#aaa;font-size:13px;margin-bottom:28px">L adversaire choisit son personnage</div>
@@ -375,7 +369,10 @@ function _launchMulti(){
   if(spinner)spinner.style.display='none';
   // Launch after showing VS
   setTimeout(()=>{
-    _hideWaitingForOpponent();
+    // Hide ALL multi overlays
+    ['multi-charsel','multi-wait','matchmaking','mp-waiting','charsel'].forEach(id=>{
+      const el=document.getElementById(id);if(el)el.style.display='none';
+    });
     g._buildWith(p1char,p2char);g._reset();
     g._multiMode=true;g._multiIsHost=host;
     g.state='INTRO';g.introF=160;
