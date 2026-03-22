@@ -238,26 +238,19 @@ function _onConnect(conn,isHost){
   // Flash then start char select
   setTimeout(()=>{
     document.getElementById('matchmaking').style.display='none';
-    _mp.myChar=0;_mp.oppChar=1;
-    // Host picks first, then syncs
+    // Go to char select, not directly to game
     _startMultiGame();
   },1800);
 }
 
 function _onRemoteData(data){
   if(data.type==='charsel'){
-    // Opponent chose their char
     _mp.oppChar=data.char;
-    if(window._game&&window._game._multiReady){
-      window._game._multiReady();
-    }
+    _mp.remoteReady=true;
+    if(_mp.localReady) _launchMulti();
   }
   if(data.type==='input'){
     _mp.remoteInput=data.inp;
-  }
-  if(data.type==='ready'){
-    _mp.remoteReady=true;
-    if(_mp.localReady&&window._game) _launchMulti();
   }
 }
 
@@ -270,26 +263,12 @@ function _onDisconnect(){
 }
 
 function _startMultiGame(){
-  // Show char select for local player
   if(!window._game)return;
   const g=window._game;
   g._multiMode=true;
   _mp.localReady=false;_mp.remoteReady=false;
-  // Reuse existing charsel but only for 1 pick
+  // Show char select - _showCS will detect _multiMode
   g._showCS(0);
-  // Override button behavior for multi
-  const orig=g._onCSPick;
-  g._onCSPickMulti=(idx)=>{
-    _mp.myChar=idx;
-    // Send to opponent
-    if(_mp.conn)_mp.conn.send({type:'charsel',char:idx});
-    _mp.localReady=true;
-    // Show waiting
-    const e=document.getElementById('charsel');
-    if(e)e.style.display='none';
-    _showWaitingForOpponent();
-    if(_mp.remoteReady) _launchMulti();
-  };
 }
 
 function _showWaitingForOpponent(){
@@ -305,15 +284,20 @@ function _showWaitingForOpponent(){
 }
 
 function _launchMulti(){
-  document.getElementById('matchmaking').style.display='none';
+  const overlay=document.getElementById('matchmaking');
+  if(overlay)overlay.style.display='none';
+  const charsel=document.getElementById('charsel');
+  if(charsel)charsel.style.display='none';
   const g=window._game;if(!g)return;
   const ckeys=Object.keys(CHARS);
   const host=_mp.isHost;
+  // Host = P1 (left), Client = P2 (right)
   const p1char=host?ckeys[_mp.myChar]:ckeys[_mp.oppChar];
   const p2char=host?ckeys[_mp.oppChar]:ckeys[_mp.myChar];
   g._buildWith(p1char,p2char);g._reset();
   g._multiMode=true;
   g._multiIsHost=host;
+  g.p1.im=g.p1.im||new Input(); // ensure P1 has input
   g.state='INTRO';g.introF=160;
 }
 
@@ -1324,20 +1308,21 @@ class Game{
       div.style.cssText=`width:148px;border-radius:12px;border:2px solid ${C.col};background:rgba(6,0,24,.97);color:#fff;display:flex;flex-direction:column;align-items:center;padding:14px 10px 12px;box-sizing:border-box`;
       div.innerHTML=`<div style="font-family:Impact;font-size:22px;color:${C.col};text-shadow:0 0 8px ${C.glow};margin-bottom:4px">${C.name}</div><div style="font-size:9px;color:${C.glow};margin-bottom:8px;text-align:center">${C.sub}</div><div style="font-size:9px;color:#aaa;text-align:left;line-height:1.6;width:100%;margin-bottom:8px">${(C.desc||[]).map(d=>'<div>• '+d+'</div>').join('')}</div><div style="font-size:9px;color:#555;margin-bottom:10px">HP: ${C.hp}</div><button style="width:100%;padding:10px 0;border-radius:20px;border:none;background:${C.col};color:#000;font-family:Impact;font-size:14px;cursor:pointer">CHOISIR</button>`;
       div.querySelector('button').onclick=()=>{
-        if(phase===0){
-          if(this._multiMode){
-            // Multi: only pick our char, then wait
-            this._p1sel=i;
-            if(window._mp&&window._mp.conn){window._mp.conn.send({type:'charsel',char:i})}
-            window._mp.localReady=true;
-            const e=document.getElementById('charsel');if(e)e.style.display='none';
-            _showWaitingForOpponent();
-            if(window._mp.remoteReady)_launchMulti();
-          } else {
-            this._p1sel=i;this._showCS(1);
-          }
+        if(this._multiMode){
+          // MULTI: pick char, send to opponent, wait
+          _mp.myChar=i;
+          if(_mp.conn)_mp.conn.send({type:'charsel',char:i});
+          _mp.localReady=true;
+          const e=document.getElementById('charsel');if(e)e.style.display='none';
+          _showWaitingForOpponent();
+          if(_mp.remoteReady)_launchMulti();
+        } else if(phase===0){
+          this._p1sel=i;this._showCS(1);
         } else {
-          this._p2sel=i;const e=document.getElementById('charsel');if(e)e.style.display='none';this._buildWith(ckeys[this._p1sel||0],ckeys[this._p2sel||1]);this._reset();this.state='INTRO';this.introF=160
+          this._p2sel=i;
+          const e=document.getElementById('charsel');if(e)e.style.display='none';
+          this._buildWith(ckeys[this._p1sel||0],ckeys[this._p2sel||1]);
+          this._reset();this.state='INTRO';this.introF=160;
         }
       };
       cards.appendChild(div);
@@ -1367,7 +1352,7 @@ class Game{
       case 'INTRO':if(--this.introF<=0){this.state='FIGHT';this.ann('FIGHT !','#ffe020',55)}break;
       case 'FIGHT':this._fight();break;
       case 'RE':if(--this.reF<=0){if(this.p1w>=Math.ceil(this.mr/2)||this.p2w>=Math.ceil(this.mr/2)){this.state='ME'}else{this.round++;this.state='INTRO';this.introF=130;this._reset()}}break;
-      case 'ME':if(this.mim.p.size>0||this.mim.pk('GP_START')||this.mim.pk('GP_ATK')||this.mim.pk('GP_JUMP')||this._touchStart){this._touchStart=false;this.round=1;this.p1w=0;this.p2w=0;this.state='MENU';_showMainMenu();}break;
+      case 'ME':if(this.mim.p.size>0||this.mim.pk('GP_START')||this.mim.pk('GP_ATK')||this.mim.pk('GP_JUMP')||this._touchStart){this._touchStart=false;this.round=1;this.p1w=0;this.p2w=0;this._multiMode=false;this.state='MENU';_showMainMenu();}break;
     }
   }
   _fight(){
@@ -1469,7 +1454,6 @@ class Game{
     if(this.state!=='MENU') this.ui.draw(ctx,this.p1,this.p2,this.timer,this.p1w,this.p2w,this.mr,this.T);
     if(this.annF>0){const a=this.annF>30?1:this.annF/30;ctx.save();ctx.globalAlpha=a;this.ui.bigText(ctx,this.annT,W/2,H/2+24,this.annC);ctx.restore()}
     if(this._st>0){this._st--;const sa=Math.min(1,this._st/10);ctx.save();ctx.globalAlpha=sa;ctx.textAlign='center';ctx.font=`bold 30px Impact,sans-serif`;ctx.strokeStyle='#000';ctx.lineWidth=5;ctx.strokeText(this._sl||'',W/2,155);ctx.fillStyle=this._sc||'#fff';ctx.shadowBlur=16;ctx.shadowColor=this._sc||'#fff';ctx.fillText(this._sl||'',W/2,155);ctx.restore()}
-    this._debug(ctx);
     switch(this.state){
       case 'MENU': this._menu(ctx);break;
       case 'INTRO': this._intro(ctx);break;
@@ -1508,8 +1492,6 @@ class Game{
     ctx.save();ctx.textAlign='center';ctx.font=`bold 44px Impact`;
     ctx.strokeStyle='#000';ctx.lineWidth=5;ctx.strokeText('VS',W/2,282);
     ctx.fillStyle='#fff';ctx.shadowBlur=22;ctx.shadowColor='#cc88ff';ctx.fillText('VS',W/2,282);ctx.restore();
-    // Controls
-    this._controls(ctx);
     // Press key
     const p=.5+Math.sin(T*3.5)*.5;
     ctx.save();ctx.globalAlpha=p;ctx.textAlign='center';
@@ -1531,27 +1513,7 @@ class Game{
     ctx.fillStyle=C.col;ctx.shadowBlur=8;ctx.shadowColor=C.glow;
     ctx.beginPath();ctx.arc(flip?bx+16:bx+bw-16,y+30,10,0,Math.PI*2);ctx.fill();ctx.restore();
   }
-  _controls(ctx){
-    const gp=this.p1.im&&this.p1.im.hasGamepad;
-    ctx.save();ctx.textAlign='center';
-    ctx.fillStyle='rgba(10,0,30,.65)';ctx.strokeStyle=gp?'#40c080':'#4030a0';ctx.lineWidth=1.5;
-    ctx.beginPath();rr(ctx,W/2-280,330,560,88,6);ctx.fill();ctx.stroke();
-    ctx.font=`bold 11px 'Courier New',monospace`;
-    ctx.fillStyle=gp?'#60ffaa':'#aa88ff';
-    ctx.fillText(gp?'MANETTE DETECTEE — DualSense':'CONTROLES CLAVIER (AZERTY) / MANETTE',W/2,350);
-    ctx.font=`10px 'Courier New',monospace`;ctx.fillStyle='#8878cc';
-    const lines=gp?[
-      'Directionnel / stick gauche : bouger',
-      'Carre: attaquer  |  Croix: sauter  |  Rond: uppercut  |  Triangle: special',
-      'R1: SUPER (quand barre etoile pleine)',
-    ]:[
-      'Clavier: Q/D=bouger  Z=sauter  S=accroupir  R=attaquer',
-      'Uppercut: Z+R   |   Special: S+R   |   SUPER: Z+S+R (jauge pleine)',
-      'Branchez une manette pour jouer a la DualSense !',
-    ];
-    lines.forEach((l,i)=>ctx.fillText(l,W/2,366+i*14));
-    ctx.restore();
-  }
+
   _intro(ctx){
     const p=1-this.introF/160;
     ctx.fillStyle='rgba(1,0,14,.55)';ctx.fillRect(0,0,W,H);
@@ -1590,21 +1552,7 @@ class Game{
 }
 
 // patch _debug into Game prototype after class definition
-Game.prototype._debug=function(ctx){
-  const g=this.p1&&this.p1.im?this.p1.im._gp():null;
-  ctx.save();
-  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(4,H-60,320,56);
-  ctx.font='11px monospace';ctx.fillStyle='#0f0';
-  ctx.fillText('GP: '+(g?g.id.substring(0,30):'NON DETECTE'),8,H-44);
-  if(g){
-    let btns='';
-    for(let i=0;i<g.buttons.length;i++) if(g.buttons[i].pressed) btns+=i+' ';
-    ctx.fillText('BTN: '+(btns||'aucun')+' AX:'+g.axes[0].toFixed(1)+'/'+g.axes[1].toFixed(1),8,H-28);
-  }
-  ctx.fillStyle='#ff0';
-  ctx.fillText('URL: qmartignole-sketch.github.io/novaclash',8,H-12);
-  ctx.restore();
-};
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MULTIPLAYER — PeerJS peer-to-peer matchmaking
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1706,26 +1654,19 @@ function _onConnect(conn,isHost){
   // Flash then start char select
   setTimeout(()=>{
     document.getElementById('matchmaking').style.display='none';
-    _mp.myChar=0;_mp.oppChar=1;
-    // Host picks first, then syncs
+    // Go to char select, not directly to game
     _startMultiGame();
   },1800);
 }
 
 function _onRemoteData(data){
   if(data.type==='charsel'){
-    // Opponent chose their char
     _mp.oppChar=data.char;
-    if(window._game&&window._game._multiReady){
-      window._game._multiReady();
-    }
+    _mp.remoteReady=true;
+    if(_mp.localReady) _launchMulti();
   }
   if(data.type==='input'){
     _mp.remoteInput=data.inp;
-  }
-  if(data.type==='ready'){
-    _mp.remoteReady=true;
-    if(_mp.localReady&&window._game) _launchMulti();
   }
 }
 
@@ -1738,26 +1679,12 @@ function _onDisconnect(){
 }
 
 function _startMultiGame(){
-  // Show char select for local player
   if(!window._game)return;
   const g=window._game;
   g._multiMode=true;
   _mp.localReady=false;_mp.remoteReady=false;
-  // Reuse existing charsel but only for 1 pick
+  // Show char select - _showCS will detect _multiMode
   g._showCS(0);
-  // Override button behavior for multi
-  const orig=g._onCSPick;
-  g._onCSPickMulti=(idx)=>{
-    _mp.myChar=idx;
-    // Send to opponent
-    if(_mp.conn)_mp.conn.send({type:'charsel',char:idx});
-    _mp.localReady=true;
-    // Show waiting
-    const e=document.getElementById('charsel');
-    if(e)e.style.display='none';
-    _showWaitingForOpponent();
-    if(_mp.remoteReady) _launchMulti();
-  };
 }
 
 function _showWaitingForOpponent(){
@@ -1773,15 +1700,20 @@ function _showWaitingForOpponent(){
 }
 
 function _launchMulti(){
-  document.getElementById('matchmaking').style.display='none';
+  const overlay=document.getElementById('matchmaking');
+  if(overlay)overlay.style.display='none';
+  const charsel=document.getElementById('charsel');
+  if(charsel)charsel.style.display='none';
   const g=window._game;if(!g)return;
   const ckeys=Object.keys(CHARS);
   const host=_mp.isHost;
+  // Host = P1 (left), Client = P2 (right)
   const p1char=host?ckeys[_mp.myChar]:ckeys[_mp.oppChar];
   const p2char=host?ckeys[_mp.oppChar]:ckeys[_mp.myChar];
   g._buildWith(p1char,p2char);g._reset();
   g._multiMode=true;
   g._multiIsHost=host;
+  g.p1.im=g.p1.im||new Input(); // ensure P1 has input
   g.state='INTRO';g.introF=160;
 }
 
