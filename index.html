@@ -123,7 +123,14 @@ window.addEventListener('load',()=>{
 </script>
 <script>
 'use strict';
-const W=960,H=540,FLOOR=430,SL=70,SR=890,G=0.62,JV=-16,WF=4.8,WB=3.8;
+const W=960,H=540,FLOOR=430,SL=70,SR=890;
+const G=0.42;        // gravity plus douce = arc plus naturel
+const JV=-13.5;      // saut moins violent
+const WF=3.2;        // marche avant plus lente
+const WB=2.6;        // marche arriere plus lente
+const ACC=0.28;      // acceleration progressive
+const DEC=0.88;      // deceleration avec inertie
+const AIR_DEC=0.97;  // peu de friction en l'air
 
 // ── States ──────────────────────────────────────────────────
 const S={IDLE:'I',WF:'WF',WB:'WB',CR:'CR',JU:'JU',JF:'JF',JB:'JB',
@@ -331,7 +338,7 @@ const CHARS={
 class Fighter{
   constructor(id,cn,sx,fr,isHuman){
     this.id=id;this.cn=cn;this.C=CHARS[cn];
-    this.x=sx;this.y=FLOOR;this.vx=0;this.vy=0;this.fr=fr;
+    this.x=sx;this.y=FLOOR;this.vx=0;this.vy=0;this.tvx=0;this.fr=fr; // tvx = target velocity
     this.w=48;this.h=118;
     this.hp=this.C.hp;this.mhp=this.C.hp;this.dhp=this.C.hp;
     this.en=0;this.men=100;
@@ -454,10 +461,22 @@ class Fighter{
     }
   }
   _jump(fwd,bck){
+    // Preserve horizontal momentum when jumping
+    const baseVx=this.vx;
     this.vy=JV;this.y=FLOOR-1;
-    if(fwd){this.go(S.JF);this.vx=this.fr?WF:-WF}
-    else if(bck){this.go(S.JB);this.vx=this.fr?-WB:WB}
-    else{this.go(S.JU);this.vx=0}
+    if(fwd){
+      this.go(S.JF);
+      // Blend current momentum with jump direction
+      const jvx=this.fr?WF*1.1:-WF*1.1;
+      this.vx=baseVx*0.4+jvx*0.6;
+    } else if(bck){
+      this.go(S.JB);
+      const jvx=this.fr?-WB*1.1:WB*1.1;
+      this.vx=baseVx*0.4+jvx*0.6;
+    } else {
+      this.go(S.JU);
+      this.vx=baseVx*0.3; // carry some momentum in neutral jump
+    }
   }
 
   // ── Tick ──
@@ -475,35 +494,66 @@ class Fighter{
   }
   _stLogic(opp,pts){
     const m=this.mv;
+    // Smooth velocity: interpolate toward target
+    const lerp=(a,b,t)=>a+(b-a)*t;
     switch(this.st){
-      case S.WF:this.vx=this.fr?WF:-WF;break;
-      case S.WB:this.vx=this.fr?-WB:WB;break;
-      case S.IDLE:case S.CR:this.vx*=0.6;break;
-      case S.BH:case S.BL:this.vx*=0.5;
+      case S.WF:
+        this.tvx=this.fr?WF:-WF;
+        this.vx=lerp(this.vx,this.tvx,ACC);break;
+      case S.WB:
+        this.tvx=this.fr?-WB:WB;
+        this.vx=lerp(this.vx,this.tvx,ACC*0.85);break;
+      case S.IDLE:
+        this.vx=lerp(this.vx,0,1-DEC);break;
+      case S.CR:
+        this.vx=lerp(this.vx,0,1-DEC*0.95);break;
+      case S.BH:case S.BL:
+        this.vx=lerp(this.vx,0,0.18);
         if(this.isHuman){const b=this.fr?this.im.hk(KB.left):this.im.hk(KB.right);if(!b)this.go(S.IDLE)}
         break;
-      case S.HIT:this.vx*=0.78;if(this.sT>20&&this.grnd)this.go(S.IDLE);break;
-      case S.KD:if(this.grnd){this.vx*=0.55;if(this.sT>58&&this.hp>0){this.go(S.GU);this.inv=24}}break;
-      case S.GU:this.vx*=0.5;if(this.sT>28)this.go(S.IDLE);break;
+      case S.HIT:
+        this.vx*=0.88;
+        if(this.sT>28&&this.grnd)this.go(S.IDLE);break;
+      case S.KD:
+        if(this.grnd){this.vx*=0.62;if(this.sT>70&&this.hp>0){this.go(S.GU);this.inv=24}}break;
+      case S.GU:
+        this.vx=lerp(this.vx,0,0.12);
+        if(this.sT>35)this.go(S.IDLE);break;
       case S.SP1:
-        if(this.cn==='KIRA'&&this.sT<=18)this.vx=this.fr?14:-14;else this.vx*=0.7;
+        if(this.cn==='KIRA'&&this.sT<=22)this.vx=lerp(this.vx,this.fr?11:-11,0.35);
+        else this.vx=lerp(this.vx,0,0.12);
         if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
-      case S.SP2:if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
+      case S.SP2:
+        this.vx=lerp(this.vx,0,0.08);
+        if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
       case S.SP3:
-        if(this.cn==='RYOKEN'&&this.sT<12)this.vx=this.fr?9:-9;else if(this.sT>12)this.vx*=0.65;
+        if(this.cn==='RYOKEN'&&this.sT<16)this.vx=lerp(this.vx,this.fr?8:-8,0.3);
+        else this.vx=lerp(this.vx,0,0.1);
         if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
-      case S.SUP:this.vx*=0.85;if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
-      default:this.vx*=0.7;if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
+      case S.SUP:
+        this.vx=lerp(this.vx,0,0.06);
+        if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
+      default:
+        this.vx=lerp(this.vx,0,0.1);
+        if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
     }
   }
   _phys(){
-    if(this.air||this.vy<0)this.vy+=G;
+    // Realistic gravity: apply always, landing smoothed
+    this.vy+=G;
+    // Air resistance on horizontal
+    if(this.air) this.vx*=AIR_DEC;
     this.x+=this.vx;this.y+=this.vy;
     if(this.y>=FLOOR){
-      this.y=FLOOR;this.vy=0;
-      if([S.JU,S.JF,S.JB,S.JA].includes(this.st)){this.go(S.IDLE);this.vx*=0.35}
+      this.y=FLOOR;
+      // Soft landing: dampen vertical
+      if(this.vy>0) this.vy=0;
+      if([S.JU,S.JF,S.JB,S.JA].includes(this.st)){
+        this.go(S.IDLE);
+        this.vx*=0.55; // conserve some momentum on landing
+      }
       if(this.st===S.SP2)this.go(S.IDLE);
-      if(this.st===S.KD)this.vx*=0.4;
+      if(this.st===S.KD)this.vx*=0.5;
     }
   }
 
@@ -530,7 +580,9 @@ class Fighter{
   _drawChar(ctx,x,y,fr,T,ghost){
     const C=this.C,d=fr?1:-1,st=this.st,t=this.sT;
     let lean=0,squat=0,armAng=0,legAng=0,stretch=0,jumpFloat=0;
-    const ib=Math.sin(T*2)*2.5;
+    const ib=Math.sin(T*1.4)*2.2; // slower breathing
+    // Smooth pose blend factor based on frames in state
+    const blend=Math.min(1, t/6); // 6 frames to reach full pose
     // ── Attack direction arrow (shows which way the hit goes) ──
     if(!ghost&&this.isAtk()&&this.mv){
       const mv=this.mv;
@@ -544,15 +596,18 @@ class Fighter{
       }
     }
     switch(st){
-      case S.IDLE:   lean=0;break;
-      case S.WF:     lean=d*7;legAng=Math.sin(T*9)*22;armAng=Math.sin(T*9)*20;break;
-      case S.WB:     lean=-d*5;legAng=Math.sin(T*8)*16;armAng=Math.sin(T*8)*14;break;
+      case S.IDLE:   lean=Math.sin(T*1.2)*1.5;stretch=Math.sin(T*1.2)*1.2;break;
+      case S.WF:     lean=d*5+Math.sin(T*7)*1.5;legAng=Math.sin(T*7)*18;armAng=Math.sin(T*7+Math.PI)*16;break;
+      case S.WB:     lean=-d*4+Math.sin(T*6)*1.2;legAng=Math.sin(T*6)*14;armAng=Math.sin(T*6+Math.PI)*12;break;
       case S.CR:case S.BL:case S.CL:case S.CM:case S.CH: squat=28;lean=d*4;break;
       case S.JU:case S.JF:case S.JB: stretch=-10;lean=d*8;armAng=-35;legAng=-18;jumpFloat=-8;break;
       case S.JA:     stretch=-6;armAng=d*75;legAng=14;jumpFloat=-5;break;
-      case S.LP:     lean=d*(t<5?22:5);armAng=d*(t<5?80:12);break;
-      case S.MP:     lean=d*(t<8?32:9);armAng=d*(t<8?110:18);break;
-      case S.HP:     lean=d*(t<11?44:14);armAng=d*(t<11?135:25);break;
+      case S.LP:
+        lean=d*(t<5?22*blend:5);armAng=d*(t<5?80*blend:12*(1-blend*.5));break;
+      case S.MP:
+        lean=d*(t<8?32*blend:9);armAng=d*(t<8?110*blend:18*(1-blend*.5));break;
+      case S.HP:
+        lean=d*(t<11?44*blend:14);armAng=d*(t<11?135*blend:25*(1-blend*.5));break;
       case S.BH:     lean=-d*10;armAng=-26;break;
       case S.SP1:
         if(this.cn==='KIRA'){lean=d*28;armAng=d*45}
