@@ -2,6 +2,14 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
+<meta name="apple-mobile-web-app-title" content="Nova Clash">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
 <title>NOVA CLASH</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <style>
@@ -1139,5 +1147,19 @@ Game.prototype._debug=function(ctx){
 };
 window.addEventListener('load',()=>new Game());
 </script>
-</body>
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+<script>
+// PWA tout-en-un : manifest + service worker inlines
+const _manifest={name:"Nova Clash",short_name:"Nova Clash",display:"fullscreen",orientation:"landscape",background_color:"#000",theme_color:"#000",start_url:"./",icons:[{src:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",sizes:"192x192",type:"image/png"}]};
+const _mb=new Blob([JSON.stringify(_manifest)],{type:'application/manifest+json'});
+const _ml=document.createElement('link');_ml.rel='manifest';_ml.href=URL.createObjectURL(_mb);document.head.appendChild(_ml);
+// Service worker inline
+const _sw=`self.addEventListener('fetch',e=>{});`;
+const _swb=new Blob([_sw],{type:'text/javascript'});
+if('serviceWorker' in navigator) navigator.serviceWorker.register(URL.createObjectURL(_swb),{scope:'./'}).catch(()=>{});
+</script>
 </html>
