@@ -34,7 +34,6 @@ canvas{display:block;image-rendering:pixelated}
   <div style="position:absolute;right:10px;bottom:10px;pointer-events:all">
     <div style="position:relative;width:200px;height:140px">
       <button class="tb" id="tatk" style="position:absolute;right:0;top:45px;width:60px;height:60px;background:rgba(220,80,80,.7)">ATK</button>
-      <button class="tb" id="tjmp" style="position:absolute;right:70px;bottom:0;width:55px;height:55px;background:rgba(80,180,80,.7)">SAUT</button>
       <button class="tb" id="tsp2" style="position:absolute;right:70px;top:0;width:55px;height:55px;background:rgba(80,80,220,.7)">SP2</button>
       <button class="tb" id="tsp3" style="position:absolute;right:135px;top:45px;width:55px;height:55px;background:rgba(200,150,0,.7)">SP3</button>
       <button class="tb" id="tsup" style="position:absolute;right:145px;top:0;width:45px;height:35px;background:rgba(220,200,0,.7);font-size:11px">SUP</button>
@@ -61,7 +60,7 @@ window.addEventListener('load',()=>{
   // Show on touch device
   if('ontouchstart' in window||navigator.maxTouchPoints>0) tc.style.display='block';
   _tbind('tl','left');_tbind('tr','right');_tbind('tu','up');_tbind('td','down');
-  _tbind('tatk','atk');_tbind('tjmp','jmp');_tbind('tsp2','sp2');_tbind('tsp3','sp3');_tbind('tsup','sup');
+  _tbind('tatk','atk');_tbind('tsp2','sp2');_tbind('tsp3','sp3');_tbind('tsup','sup');
 });
 </script>
 <script>
@@ -1145,7 +1144,19 @@ Game.prototype._debug=function(ctx){
   ctx.fillText('URL: qmartignole-sketch.github.io/novaclash',8,H-12);
   ctx.restore();
 };
-window.addEventListener('load',()=>new Game());
+window.addEventListener('load',()=>{
+  new Game();
+  // Plein écran automatique sur mobile
+  const goFS=()=>{
+    const el=document.documentElement;
+    const rq=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen;
+    if(rq) rq.call(el).catch(()=>{});
+  };
+  document.addEventListener('touchstart',goFS,{once:true});
+  document.addEventListener('click',goFS,{once:true});
+  // Empêcher la mise en veille
+  if('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(()=>{});
+});
 </script>
 <script>
 if('serviceWorker' in navigator){
@@ -1153,13 +1164,11 @@ if('serviceWorker' in navigator){
 }
 </script>
 <script>
-// PWA tout-en-un : manifest + service worker inlines
-const _manifest={name:"Nova Clash",short_name:"Nova Clash",display:"fullscreen",orientation:"landscape",background_color:"#000",theme_color:"#000",start_url:"./",icons:[{src:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",sizes:"192x192",type:"image/png"}]};
-const _mb=new Blob([JSON.stringify(_manifest)],{type:'application/manifest+json'});
-const _ml=document.createElement('link');_ml.rel='manifest';_ml.href=URL.createObjectURL(_mb);document.head.appendChild(_ml);
-// Service worker inline
-const _sw=`self.addEventListener('fetch',e=>{});`;
-const _swb=new Blob([_sw],{type:'text/javascript'});
-if('serviceWorker' in navigator) navigator.serviceWorker.register(URL.createObjectURL(_swb),{scope:'./'}).catch(()=>{});
+// Désinstalle tous les anciens service workers
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.getRegistrations().then(regs=>{
+    for(const r of regs) r.unregister();
+  });
+}
 </script>
 </html>
