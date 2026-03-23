@@ -1565,6 +1565,7 @@ class Game{
     this._build();requestAnimationFrame(ts=>this._loop(ts));
   }
   _showCS(phase){
+    if(phase===0){this._p1sel=0;this._p2sel=1;} // reset defaults
     const e=document.getElementById('charsel');if(e)e.style.display='block';
     const el=document.getElementById('charsel');
     const acol=phase===0?'#2ee8ff':'#ff5522';
@@ -1596,7 +1597,7 @@ class Game{
         } else {
           this._p2sel=i;
           const e=document.getElementById('charsel');if(e)e.style.display='none';
-          this._buildWith(ckeys[this._p1sel||0],ckeys[this._p2sel||1]);
+          this._buildWith(ckeys[this._p1sel??0],ckeys[this._p2sel??1]);
           this._reset();
           this.round=1;this.p1w=0;this.p2w=0;
           this.state='INTRO';this.introF=180;
@@ -1754,25 +1755,9 @@ class Game{
   }
 
   _menu(ctx){
+    // Canvas background only — HTML mainmenu overlay handles display
     const T=this.T;
-    ctx.fillStyle='rgba(1,0,14,.78)';ctx.fillRect(0,0,W,H);
-    // Title
-    ctx.save();ctx.textAlign='center';
-    const tg=ctx.createLinearGradient(W/2-240,0,W/2+240,0);
-    tg.addColorStop(0,'#2ee8ff');tg.addColorStop(.5,'#ffffff');tg.addColorStop(1,'#ff5522');
-    ctx.font=`bold 96px Impact,sans-serif`;
-    ctx.strokeStyle='#000';ctx.lineWidth=10;ctx.strokeText('NOVA CLASH',W/2,178);
-    ctx.fillStyle=tg;ctx.shadowBlur=38;ctx.shadowColor='#8040ff';ctx.fillText('NOVA CLASH',W/2,178);
-    // Subtitle
-    ctx.font=`14px 'Courier New',monospace`;ctx.fillStyle='#8060b0';ctx.shadowBlur=0;
-    ctx.fillText('LE COMBAT ARCADE NÉON ULTIME',W/2,206);ctx.restore();
-    // VS cards
-    this._vsCard(ctx,this.p1,88,255,'left',T);this._vsCard(ctx,this.p2,W-88,255,'right',T);
-    ctx.save();ctx.textAlign='center';ctx.font=`bold 44px Impact`;
-    ctx.strokeStyle='#000';ctx.lineWidth=5;ctx.strokeText('VS',W/2,282);
-    ctx.fillStyle='#fff';ctx.shadowBlur=22;ctx.shadowColor='#cc88ff';ctx.fillText('VS',W/2,282);ctx.restore();
-    // Press key
-    ctx.restore();
+    // Just draw the stage as background, no fighter names
   }
   _vsCard(ctx,f,x,y,align,T){
     const C=f.C,flip=align==='right',bx=flip?x-170:x,bw=170,bh=60;
@@ -1802,22 +1787,25 @@ class Game{
     // P1 name — slides from left
     ctx.globalAlpha=Math.min(1,elapsed/20);
     ctx.font=`bold 38px Impact,sans-serif`;
+    // P1 — slides in from left (actual chosen char name)
+    const p1n=this.p1?.C?.name||'P1', p1c=this.p1?.C?.col||'#2ee8ff', p1g=this.p1?.C?.glow||'#9ef', p1s=this.p1?.C?.sub||'';
+    const p2n=this.p2?.C?.name||'P2', p2c=this.p2?.C?.col||'#ff5522', p2g=this.p2?.C?.glow||'#fa8', p2s=this.p2?.C?.sub||'';
     ctx.textAlign='left';
-    ctx.fillStyle=this.p1.C.col;ctx.shadowBlur=16;ctx.shadowColor=this.p1.C.glow;
+    ctx.fillStyle=p1c;ctx.shadowBlur=16;ctx.shadowColor=p1g;
     ctx.strokeStyle='#000';ctx.lineWidth=5;
     const p1x=60-slide*200;
-    ctx.strokeText(this.p1.C.name,p1x,H/2-20);ctx.fillText(this.p1.C.name,p1x,H/2-20);
-    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=this.p1.C.glow;ctx.shadowBlur=0;
-    ctx.fillText(this.p1.C.sub,p1x,H/2+8);
-    // P2 name — slides from right
+    ctx.strokeText(p1n,p1x,H/2-20);ctx.fillText(p1n,p1x,H/2-20);
+    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=p1g;ctx.shadowBlur=0;
+    ctx.fillText(p1s,p1x,H/2+8);
+    // P2 — slides in from right
     ctx.textAlign='right';
-    ctx.fillStyle=this.p2.C.col;ctx.shadowBlur=16;ctx.shadowColor=this.p2.C.glow;
+    ctx.fillStyle=p2c;ctx.shadowBlur=16;ctx.shadowColor=p2g;
     ctx.strokeStyle='#000';ctx.lineWidth=5;
     const p2x=W-60+slide*200;
     ctx.font=`bold 38px Impact,sans-serif`;
-    ctx.strokeText(this.p2.C.name,p2x,H/2-20);ctx.fillText(this.p2.C.name,p2x,H/2-20);
-    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=this.p2.C.glow;ctx.shadowBlur=0;
-    ctx.fillText(this.p2.C.sub,p2x,H/2+8);
+    ctx.strokeText(p2n,p2x,H/2-20);ctx.fillText(p2n,p2x,H/2-20);
+    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=p2g;ctx.shadowBlur=0;
+    ctx.fillText(p2s,p2x,H/2+8);
     // VS in center — appears after slide
     if(elapsed>15){
       ctx.globalAlpha=Math.min(1,(elapsed-15)/10);
