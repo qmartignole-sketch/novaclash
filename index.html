@@ -1599,7 +1599,7 @@ class Game{
           this._buildWith(ckeys[this._p1sel||0],ckeys[this._p2sel||1]);
           this._reset();
           this.round=1;this.p1w=0;this.p2w=0;
-          this.state='INTRO';this.introF=160;
+          this.state='INTRO';this.introF=180;
         }
       };
       cards.appendChild(div);
@@ -1628,7 +1628,7 @@ class Game{
       case 'MENU':break;
       case 'INTRO':if(--this.introF<=0){this.state='FIGHT';this.ann('FIGHT !','#ffe020',55)}break;
       case 'FIGHT':this._fight();break;
-      case 'RE':if(--this.reF<=0){if(this.p1w>=Math.ceil(this.mr/2)||this.p2w>=Math.ceil(this.mr/2)){this.state='ME'}else{this.round++;this.state='INTRO';this.introF=130;this._reset()}}break;
+      case 'RE':if(--this.reF<=0){if(this.p1w>=Math.ceil(this.mr/2)||this.p2w>=Math.ceil(this.mr/2)){this.state='ME'}else{this.round++;this.state='INTRO';this.introF=180;this._reset()}}break;
       case 'ME':if(this.mim.p.size>0||this.mim.pk('GP_START')||this.mim.pk('GP_ATK')||this.mim.pk('GP_JUMP')||this._touchStart){this._touchStart=false;this.round=1;this.p1w=0;this.p2w=0;this._multiMode=false;this.state='MENU';_showMainMenu();}break;
     }
   }
@@ -1772,10 +1772,7 @@ class Game{
     ctx.strokeStyle='#000';ctx.lineWidth=5;ctx.strokeText('VS',W/2,282);
     ctx.fillStyle='#fff';ctx.shadowBlur=22;ctx.shadowColor='#cc88ff';ctx.fillText('VS',W/2,282);ctx.restore();
     // Press key
-    const p=.5+Math.sin(T*3.5)*.5;
-    ctx.save();ctx.globalAlpha=p;ctx.textAlign='center';
-    ctx.font=`bold 20px 'Courier New',monospace`;ctx.fillStyle='#ffe020';ctx.shadowBlur=18;ctx.shadowColor='#ffaa00';
-    ctx.fillText('— APPUYEZ SUR UNE TOUCHE —',W/2,462);ctx.restore();
+    ctx.restore();
   }
   _vsCard(ctx,f,x,y,align,T){
     const C=f.C,flip=align==='right',bx=flip?x-170:x,bw=170,bh=60;
@@ -1794,15 +1791,61 @@ class Game{
   }
 
   _intro(ctx){
-    const p=1-this.introF/160;
-    ctx.fillStyle='rgba(1,0,14,.55)';ctx.fillRect(0,0,W,H);
-    if(this.introF<55){
-      const ra=Math.min(1,(55-this.introF)/18);
-      ctx.save();ctx.globalAlpha=ra;ctx.textAlign='center';
-      ctx.font=`bold 56px Impact,sans-serif`;
-      ctx.strokeStyle='#000';ctx.lineWidth=6;ctx.strokeText(`ROUND ${this.round}`,W/2,H/2);
-      ctx.fillStyle='#fff';ctx.shadowBlur=28;ctx.shadowColor='#8040ff';ctx.fillText(`ROUND ${this.round}`,W/2,H/2);ctx.restore();
+    // Dark overlay
+    ctx.fillStyle='rgba(1,0,14,.75)';ctx.fillRect(0,0,W,H);
+    const total=180; // 3 seconds at 60fps
+    const elapsed=total-this.introF;
+    const prog=Math.min(1,elapsed/total);
+    // VS banner — slides in from sides
+    const slide=Math.max(0,1-elapsed/30);
+    ctx.save();
+    // P1 name — slides from left
+    ctx.globalAlpha=Math.min(1,elapsed/20);
+    ctx.font=`bold 38px Impact,sans-serif`;
+    ctx.textAlign='left';
+    ctx.fillStyle=this.p1.C.col;ctx.shadowBlur=16;ctx.shadowColor=this.p1.C.glow;
+    ctx.strokeStyle='#000';ctx.lineWidth=5;
+    const p1x=60-slide*200;
+    ctx.strokeText(this.p1.C.name,p1x,H/2-20);ctx.fillText(this.p1.C.name,p1x,H/2-20);
+    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=this.p1.C.glow;ctx.shadowBlur=0;
+    ctx.fillText(this.p1.C.sub,p1x,H/2+8);
+    // P2 name — slides from right
+    ctx.textAlign='right';
+    ctx.fillStyle=this.p2.C.col;ctx.shadowBlur=16;ctx.shadowColor=this.p2.C.glow;
+    ctx.strokeStyle='#000';ctx.lineWidth=5;
+    const p2x=W-60+slide*200;
+    ctx.font=`bold 38px Impact,sans-serif`;
+    ctx.strokeText(this.p2.C.name,p2x,H/2-20);ctx.fillText(this.p2.C.name,p2x,H/2-20);
+    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=this.p2.C.glow;ctx.shadowBlur=0;
+    ctx.fillText(this.p2.C.sub,p2x,H/2+8);
+    // VS in center — appears after slide
+    if(elapsed>15){
+      ctx.globalAlpha=Math.min(1,(elapsed-15)/10);
+      ctx.textAlign='center';ctx.font=`bold 52px Impact,sans-serif`;
+      ctx.strokeStyle='#000';ctx.lineWidth=7;ctx.strokeText('VS',W/2,H/2-10);
+      ctx.fillStyle='#fff';ctx.shadowBlur=22;ctx.shadowColor='#8040ff';ctx.fillText('VS',W/2,H/2-10);
     }
+    // Round indicator
+    if(elapsed>25){
+      ctx.globalAlpha=Math.min(1,(elapsed-25)/12);
+      ctx.textAlign='center';ctx.font=`14px 'Courier New',monospace`;
+      ctx.fillStyle='#7060a0';ctx.shadowBlur=0;
+      ctx.fillText(`ROUND ${this.round}`,W/2,H/2+38);
+    }
+    // 3-2-1 countdown
+    const secLeft=Math.ceil(this.introF/60);
+    if(secLeft>=1&&secLeft<=3&&elapsed>20){
+      const frameInSec=this.introF%60;
+      const scale=1+(1-frameInSec/60)*0.4; // pulses on each second
+      ctx.globalAlpha=0.9;ctx.textAlign='center';
+      ctx.save();ctx.translate(W/2,H/2+90);ctx.scale(scale,scale);
+      ctx.font=`bold 72px Impact,sans-serif`;
+      const col=secLeft===1?'#ff4040':secLeft===2?'#ffaa00':'#22ff88';
+      ctx.strokeStyle='#000';ctx.lineWidth=8;ctx.strokeText(secLeft,0,0);
+      ctx.fillStyle=col;ctx.shadowBlur=24;ctx.shadowColor=col;ctx.fillText(secLeft,0,0);
+      ctx.restore();
+    }
+    ctx.restore();
   }
   _matchEnd(ctx){
     const T=this.T;
