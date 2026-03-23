@@ -956,27 +956,121 @@ class Fighter{
   _drawChar(ctx,x,y,fr,T,ghost){
     const C=this.C,d=fr?1:-1,st=this.st,t=this.sT;
     // Pose derived params
-    let lean=0,squat=0,armAng=0,legAng=0,stretch=0,jumpFloat=0;
+    let lean=0,squat=0,armAng=0,legAng=0,stretch=0,jf=0,headTilt=0,jumpFloat=0;
     const ib=Math.sin(T*2)*2.5;
+    // Smooth interpolation helper
+    const lerp=(a,b,t)=>a+(b-a)*Math.min(1,t);
+    // State frame progress 0->1
+    const fp=Math.min(1, t/8);
+    const fp2=Math.min(1, t/14);
+
     switch(st){
-      case S.IDLE:   lean=Math.sin(T*1.1)*1.2;break;
-      case S.WF:     lean=d*5;legAng=Math.sin(T*6.5)*18;armAng=Math.sin(T*6.5+Math.PI)*16;break;
-      case S.WB:     lean=-d*4;legAng=Math.sin(T*5.5)*14;armAng=Math.sin(T*5.5+Math.PI)*12;break;
-      case S.CR:case S.BL:case S.CL:case S.CM:case S.CH: squat=26;lean=d*3;break;
-      case S.JU:case S.JF:case S.JB: stretch=-8;lean=d*6;armAng=-30;legAng=-14;jumpFloat=-6;break;
-      case S.JA:     stretch=-5;armAng=d*65;legAng=10;jumpFloat=-4;break;
-      case S.LP:     lean=d*(t<5?18:4);armAng=d*(t<5?72:10);break;
-      case S.MP:     lean=d*(t<8?28:8);armAng=d*(t<8?100:15);break;
-      case S.HP:     lean=d*(t<11?38:12);armAng=d*(t<11?128:22);break;
-      case S.BH:     lean=-d*8;armAng=-22;break;
+      case S.IDLE:
+        // Natural breathing: whole body sways gently
+        lean=Math.sin(T*1.1)*1.5;
+        stretch=Math.sin(T*1.1)*.8;
+        headTilt=Math.sin(T*.7)*.6;
+        break;
+
+      case S.WF:
+        // Weight shift: body leans into walk, arms oppose legs
+        lean=d*6+Math.sin(T*6.5)*1.8;
+        legAng=Math.sin(T*6.5)*22;
+        armAng=Math.sin(T*6.5+Math.PI)*20;
+        headTilt=Math.sin(T*6.5)*.8;
+        break;
+
+      case S.WB:
+        lean=-d*5+Math.sin(T*5.5)*1.4;
+        legAng=Math.sin(T*5.5)*17;
+        armAng=Math.sin(T*5.5+Math.PI)*15;
+        break;
+
+      case S.CR: squat=26;lean=d*3;armAng=-12;break;
+      case S.BH: lean=-d*9;armAng=-26;headTilt=-3;break;
+      case S.BL: squat=26;lean=-d*5;armAng=-20;break;
+
+      case S.JU:
+        // Anticipation: crouch on frame 1-3, then explosion up
+        if(t<3){squat=8;stretch=-3}
+        else{stretch=lerp(-4,-12,fp);legAng=lerp(0,-22,fp);armAng=lerp(0,-38,fp);jumpFloat=lerp(0,-8,fp)}
+        lean=d*4;break;
+      case S.JF:
+        stretch=lerp(-2,-10,fp);legAng=lerp(0,-18,fp);
+        armAng=lerp(0,-32,fp);jumpFloat=lerp(0,-6,fp);lean=d*8;break;
+      case S.JB:
+        stretch=lerp(-2,-8,fp);armAng=lerp(0,-28,fp);
+        jumpFloat=lerp(0,-5,fp);lean=-d*6;break;
+      case S.JA:
+        stretch=-5;armAng=lerp(0,d*78,fp);
+        legAng=lerp(0,16,fp);jumpFloat=-4;break;
+
+      case S.LP:{
+        // Light: snap out, then retract
+        const ext=t<4?lerp(0,1,t/4):lerp(1,0,(t-4)/6);
+        lean=d*lerp(0,20,ext);armAng=d*lerp(0,76,ext);
+        headTilt=d*lerp(0,3,ext);break;}
+
+      case S.MP:{
+        const ext=t<6?lerp(0,1,t/6):lerp(1,0,(t-6)/8);
+        lean=d*lerp(0,32,ext);armAng=d*lerp(0,108,ext);
+        headTilt=d*lerp(0,5,ext);break;}
+
+      case S.HP:{
+        // Heavy: big wind-up then slam
+        const ext=t<4?0:t<11?lerp(0,1,(t-4)/7):lerp(1,.15,(t-11)/10);
+        const windup=t<4?lerp(0,-1,t/4):0;
+        lean=d*lerp(-8,44,ext)+d*windup*12;
+        armAng=d*lerp(-15,136,ext);
+        headTilt=d*lerp(-4,8,ext);
+        squat=t<4?lerp(0,6,t/4)*2:0;break;}
+
+      case S.CL: squat=26;lean=d*(t<4?lerp(0,16,t/4):lerp(16,4,(t-4)/6));armAng=d*(t<4?lerp(0,60,t/4):lerp(60,8,(t-4)/6));break;
+      case S.CM: squat=26;lean=d*(t<6?lerp(0,22,t/6):lerp(22,6,(t-6)/8));armAng=d*(t<6?lerp(0,88,t/6):lerp(88,10,(t-6)/8));break;
+      case S.CH: squat=26;lean=d*(t<10?lerp(0,28,t/10):lerp(28,8,(t-10)/12));armAng=d*(t<10?lerp(0,100,t/10):lerp(100,12,(t-10)/12));break;
+
       case S.SP1:
-        if(this.cn==='KIRA'){lean=d*26;armAng=d*40}
-        else{lean=d*10;armAng=d*(t<12?60:12)}break;
-      case S.SP2:    stretch=t<8?-16:-6;armAng=d*(-32);break;
-      case S.SP3:    squat=14;lean=d*28;legAng=d*50;break;
-      case S.SUP:    lean=d*(Math.sin(T*16)*4);armAng=95+Math.sin(T*12)*22;break;
-      case S.HIT:    lean=-d*28;break;
-      case S.KD:case S.KO: lean=-d*100;squat=40;break;
+        if(this.cn==='KIRA'){
+          lean=lerp(0,d*30,fp2);armAng=lerp(0,d*44,fp2);
+        } else {
+          lean=d*10;armAng=d*lerp(-10,62,fp);}
+        break;
+
+      case S.SP2:
+        // Uppercut: crouch then explode UP
+        if(t<5){squat=lerp(0,22,t/5);stretch=lerp(0,-6,t/5);armAng=d*lerp(0,-38,t/5)}
+        else{squat=0;stretch=lerp(-6,-16,(t-5)/8);armAng=d*lerp(-38,20,(t-5)/8);lean=d*5}
+        break;
+
+      case S.SP3:
+        squat=16;lean=lerp(0,d*32,fp);
+        legAng=lerp(0,d*55,fp);break;
+
+      case S.SUP:{
+        const pulse=Math.sin(T*14)*0.5+0.5;
+        lean=d*(Math.sin(T*16)*5);
+        armAng=lerp(0,100,fp2)+Math.sin(T*12)*24;
+        stretch=-4+pulse*2;
+        headTilt=Math.sin(T*8)*3;
+        break;}
+
+      case S.HIT:
+        lean=-d*lerp(0,34,Math.min(1,t/4));
+        headTilt=-d*5;
+        break;
+
+      case S.KD:
+        lean=lerp(-d*34,-d*105,Math.min(1,t/10));
+        squat=lerp(0,40,Math.min(1,t/10));
+        break;
+
+      case S.KO:
+        lean=-d*105;squat=40;break;
+
+      case S.GU:
+        lean=lerp(-d*40,0,Math.min(1,t/20));
+        squat=lerp(22,0,Math.min(1,t/20));
+        break;
     }
     const base=y-4+ib+jumpFloat;
     const TH=52-squat*.4; // torso height
@@ -1855,67 +1949,6 @@ function _syncMultiInput(inp){
 function _getRemoteInput(){return _mp.remoteInput||{}}
 
 // Global menu functions
-function _showMainMenu(){const e=document.getElementById('mainmenu');if(e)e.style.display='flex'}
-function _hideMainMenu(){const e=document.getElementById('mainmenu');if(e)e.style.display='none'}
-function _showCharSel(p){
-  _hideMainMenu();
-  if(window._game){window._game._multiMode=false;window._game._showCS(p)}
-}
-function _initMenu(){
-  const play=document.getElementById('mm-play');
-  if(play)play.addEventListener('click',()=>_showCharSel(0));
-  const multi=document.getElementById('mm-multi');
-  if(multi)multi.addEventListener('click',()=>{_hideMainMenu();_startMatchmaking()});
-  const charBtn=document.getElementById('mm-char');
-  const charPanel=document.getElementById('mm-char-panel');
-  const optsPanel=document.getElementById('mm-opts-panel');
-  if(charBtn)charBtn.addEventListener('click',()=>{
-    const v=charPanel.style.display==='none';
-    charPanel.style.display=v?'block':'none';
-    optsPanel.style.display='none';
-    if(v)_buildCharPreview();
-  });
-  const opts=document.getElementById('mm-opts');
-  if(opts)opts.addEventListener('click',()=>{
-    const v=optsPanel.style.display==='none';
-    optsPanel.style.display=v?'block':'none';
-    charPanel.style.display='none';
-  });
-}
-function _buildCharPreview(){
-  const list=document.getElementById('mm-char-list');
-  if(!list)return;
-  list.innerHTML='';
-  Object.entries(CHARS).forEach(([cn,C])=>{
-    const d=document.createElement('div');
-    d.style.cssText=`min-width:120px;flex:1;border-radius:10px;border:1px solid ${C.col}55;background:rgba(6,0,18,.9);padding:12px;text-align:center`;
-    d.innerHTML=`<div style="font-family:Impact;font-size:17px;color:${C.col};margin-bottom:3px">${C.name}</div><div style="font-size:9px;color:${C.glow};margin-bottom:6px">${C.sub}</div><div style="font-size:8px;color:#666;line-height:1.6">${(C.desc||[]).slice(0,3).map(x=>'• '+x).join('<br>')}</div>`;
-    list.appendChild(d);
-  });
-}
-function setRounds(n){window._game&&(window._game.mr=n);['1','3','5'].forEach(v=>{const e=document.getElementById('opt-r'+v);if(e){e.style.borderColor='#4030a0';e.style.color='#7060a0'}});const s=document.getElementById('opt-r'+n);if(s){s.style.borderColor='#2ee8ff';s.style.color='#2ee8ff'}}
-function setDiff(n){const c=n===1?'#22ff88':n===2?'#ffa020':'#ff4444';['1','2','3'].forEach(v=>{const e=document.getElementById('opt-d'+v);if(e){e.style.borderColor='#4030a0';e.style.color='#7060a0'}});const s=document.getElementById('opt-d'+n);if(s){s.style.borderColor=c;s.style.color=c};if(window._game&&window._game.ai)window._game.ai.diff=n}
-
-window.addEventListener('load',()=>{
-  window._game=new Game();
-  window._mp=_mp;
-  _initMenu();_showMainMenu();
-  // Plein écran automatique sur mobile
-  const goFS=()=>{
-    const el=document.documentElement;
-    const rq=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen;
-    if(rq) rq.call(el).catch(()=>{});
-  };
-  document.addEventListener('touchstart',goFS,{once:true});
-  document.addEventListener('click',goFS,{once:true});
-  // Empêcher la mise en veille
-  if('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(()=>{});
-});
-</script>
-<script>
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').catch(()=>{});
-}
 </script>
 <script>
 // Désinstalle tous les anciens service workers
