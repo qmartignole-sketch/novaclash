@@ -1,4 +1,47 @@
-<!DOCTYPE html>
+<!D
+  _headZ(ctx,C,ghost,T,d){
+    // Silver hair, half-mask assassin
+    const fg=ctx.createRadialGradient(d*2,-2,0,0,0,15);
+    fg.addColorStop(0,'#b0c8d8');fg.addColorStop(.7,'#8aaabb');fg.addColorStop(1,'#607080');
+    ctx.fillStyle=fg;ctx.beginPath();ctx.ellipse(0,0,13,15,0,0,Math.PI*2);ctx.fill();
+    // Slick silver hair
+    ctx.fillStyle='#8899aa';
+    ctx.beginPath();ctx.moveTo(-13,4);ctx.quadraticCurveTo(-12,-22,0,-28);ctx.quadraticCurveTo(12,-22,13,4);ctx.closePath();ctx.fill();
+    // Hair shine
+    ctx.fillStyle='#ccdde8';ctx.globalAlpha=.55;
+    ctx.beginPath();ctx.moveTo(0,-28);ctx.quadraticCurveTo(5,-18,6,0);ctx.quadraticCurveTo(0,-10,-6,0);ctx.quadraticCurveTo(-5,-18,0,-28);ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+    // Half mask bottom face
+    ctx.fillStyle='rgba(80,160,210,.8)';ctx.beginPath();rr(ctx,-12,3,24,14,3);ctx.fill();
+    ctx.strokeStyle=C.glow;ctx.lineWidth=1;ctx.beginPath();rr(ctx,-12,3,24,14,3);ctx.stroke();
+    // Vent lines on mask
+    ctx.strokeStyle='rgba(140,220,255,.5)';ctx.lineWidth=1;
+    for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(-8,6+i*3);ctx.lineTo(8,6+i*3);ctx.stroke()}
+    if(!ghost){ctx.fillStyle=C.glow;ctx.shadowBlur=14;ctx.shadowColor=C.glow;ctx.beginPath();ctx.ellipse(4*d,-5,5,3.5,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.shadowBlur=0;ctx.beginPath();ctx.arc(5.5*d,-5.5,1.5,0,Math.PI*2);ctx.fill()}
+  }
+  _headV(ctx,C,ghost,T,d){
+    // Big bald titan, jaw scar, fierce
+    const fg=ctx.createRadialGradient(d*2,-2,0,0,0,16);
+    fg.addColorStop(0,'#b08040');fg.addColorStop(.6,'#906030');fg.addColorStop(1,'#704020');
+    ctx.fillStyle=fg;ctx.beginPath();ctx.ellipse(0,1,15,17,0,0,Math.PI*2);ctx.fill();
+    // Bald head shine
+    ctx.fillStyle='rgba(255,220,100,.18)';ctx.beginPath();ctx.ellipse(-4,-10,8,6,-.3,0,Math.PI*2);ctx.fill();
+    // Heavy brow
+    ctx.fillStyle='#503018';ctx.beginPath();ctx.moveTo(-14,-4);ctx.quadraticCurveTo(0,-14,14,-4);ctx.quadraticCurveTo(12,-2,-2,-6);ctx.quadraticCurveTo(0,-8,2,-6);ctx.quadraticCurveTo(-12,-2,-14,-4);ctx.fill();
+    // Jaw scar
+    ctx.strokeStyle='rgba(180,80,0,.7)';ctx.lineWidth=2;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(7*d,5);ctx.lineTo(12*d,14);ctx.stroke();
+    // Beard shadow
+    ctx.fillStyle='rgba(50,20,0,.35)';ctx.beginPath();ctx.ellipse(0,12,12,7,0,0,Math.PI*2);ctx.fill();
+    if(!ghost){
+      ctx.fillStyle=C.col;ctx.shadowBlur=12;ctx.shadowColor=C.col;
+      ctx.beginPath();ctx.ellipse(5*d,-3,4.5,3.5,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#fff';ctx.shadowBlur=0;ctx.beginPath();ctx.arc(6*d,-3.5,1.5,0,Math.PI*2);ctx.fill();
+      // Glowing yellow pupils - electric
+      ctx.fillStyle=C.glow;ctx.shadowBlur=8;ctx.shadowColor=C.glow;
+      ctx.beginPath();ctx.arc(5*d,-3,2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+    }
+  }
+OCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -417,7 +460,10 @@ function _getRemoteInput(){return _mp.remoteInput||{}}
 // Global menu functions
 function _showMainMenu(){const e=document.getElementById('mainmenu');if(e)e.style.display='flex'}
 function _hideMainMenu(){const e=document.getElementById('mainmenu');if(e)e.style.display='none'}
-function _showCharSel(p){_hideMainMenu();if(window._game)window._game._showCS(p)}
+function _showCharSel(p){
+  _hideMainMenu();
+  if(window._game){window._game._multiMode=false;window._game._showCS(p)}
+}
 function _initMenu(){
   const play=document.getElementById('mm-play');
   if(play)play.addEventListener('click',()=>_showCharSel(0));
@@ -665,6 +711,40 @@ const CHARS={
     shadow:'#1a5070',trim:'#ffffff',hp:1000,moves:RYOKEN_MOVES,eCost:100},
   KIRA:{name:'KIRA',sub:'Rushdown Flamboyant',col:'#ff5522',col2:'#992210',glow:'#ffaa44',
     shadow:'#6b2000',trim:'#ffdd44',hp:950,moves:KIRA_MOVES,eCost:100},
+  ZERO:{
+    name:'ZERO',sub:'Assassin Fantôme',col:'#88ddff',col2:'#224488',glow:'#ccffff',trim:'#aaffff',hp:880,
+    desc:['❄ Lance de glace (↑SP)','👻 Téléport (↓SP)','💎 Shuriken triple (S+R)','★ Blizzard total (SUPER)'],
+    moves:{
+      [S.LP]:mv(3,3,7, 50, 5,-1,[{ox:48,oy:56,w:58,h:26}]),
+      [S.MP]:mv(5,5,11,92, 7,-2,[{ox:52,oy:50,w:70,h:32}]),
+      [S.HP]:mv(9,6,18,148,10,-6,[{ox:54,oy:46,w:82,h:40}]),
+      [S.CL]:mv(3,3,8, 44, 3, 0,[{ox:44,oy:18,w:52,h:20}],{low:1}),
+      [S.CM]:mv(5,4,12,82, 5, 0,[{ox:50,oy:26,w:62,h:24}],{low:1}),
+      [S.CH]:mv(10,5,20,138,12,0,[{ox:48,oy:20,w:72,h:26}],{low:1,kd:1}),
+      [S.JA]:mv(4,8,8, 90, 6,-8,[{ox:24,oy:28,w:54,h:42}],{ovhd:1}),
+      [S.SP1]:mv(8,14,22,105,8,-10,[{ox:18,oy:90,w:42,h:100}],{anti:1,inv:7}),
+      [S.SP2]:mv(5,0,22,0,  0, 0,[],{teleport:1}),
+      [S.SP3]:mv(8,0,20,0,  0, 0,[],{proj:1}),
+      [S.SUP]:mv(16,48,40,355,8,-2,[{ox:0,oy:65,w:800,h:90}],{sup:1}),
+    },eCost:100,
+  },
+  VEGA:{
+    name:'VEGA',sub:'Titan Électrique',col:'#ffcc00',col2:'#885500',glow:'#ffee88',trim:'#ffffff',hp:1100,
+    desc:['⚡ Tonnerre (↑SP)','🔨 Tremblements (↓SP)','💥 Onde de choc (S+R)','★ Foudre divine (SUPER)'],
+    moves:{
+      [S.LP]:mv(5,4,10,65, 3,-1,[{ox:54,oy:56,w:66,h:30}]),
+      [S.MP]:mv(9,5,15,115,5,-2,[{ox:58,oy:52,w:78,h:36}]),
+      [S.HP]:mv(14,6,22,180,8,-5,[{ox:58,oy:48,w:92,h:44}]),
+      [S.CL]:mv(5,3,10,55, 2, 0,[{ox:48,oy:18,w:58,h:24}],{low:1}),
+      [S.CM]:mv(9,4,16,100,4, 0,[{ox:54,oy:28,w:70,h:28}],{low:1}),
+      [S.CH]:mv(14,5,24,165,11,0,[{ox:54,oy:22,w:80,h:30}],{low:1,kd:1}),
+      [S.JA]:mv(7,8,12,110,4,-8,[{ox:30,oy:32,w:64,h:46}],{ovhd:1}),
+      [S.SP1]:mv(12,20,28,140,4,-14,[{ox:0,oy:140,w:60,h:140}],{anti:1,inv:5}),
+      [S.SP2]:mv(14,10,26,130,16,0,[{ox:62,oy:20,w:120,h:30}],{low:1}),
+      [S.SP3]:mv(10,0,28,0,  0, 0,[],{proj:1}),
+      [S.SUP]:mv(24,44,45,420,10,-3,[{ox:0,oy:65,w:800,h:90}],{sup:1}),
+    },eCost:100,
+  }
 };
 
 // ── Color helpers ─────────────────────────────────────────
@@ -791,11 +871,11 @@ class Fighter{
     } else {this.go(S.SP1)}
   }
   _sp3(){
-    if(this.cn==='RYOKEN'){this.go(S.SP3)}
-    else{
-      this.go(S.SP3);const d=this.fr?1:-1;
-      this.projs.push(new Proj(this.x+d*30,this.y-64,d,this.id,{spd:5.5,dmg:70,w:52,h:52,col:'#ff5522',glow:'#fa8',type:'f',life:90}));
-    }
+    this.go(S.SP3);const d=this.fr?1:-1;
+    if(this.cn==='KIRA') this.projs.push(new Proj(this.x+d*30,this.y-64,d,this.id,{spd:5.5,dmg:70,w:52,h:52,col:'#ff5522',glow:'#fa8',type:'f',life:90}));
+    else if(this.cn==='RYOKEN'){this.vx=d*9}
+    else if(this.cn==='ZERO'){for(let i=0;i<3;i++)this.projs.push(new Proj(this.x+d*30,this.y-60-i*12,d,this.id,{spd:9+i*2,dmg:42,w:24,h:24,col:'#88ddff',glow:'#ccffff',type:'i',life:70}))}
+    else if(this.cn==='VEGA'){this.projs.push(new Proj(this.x+d*30,this.y-30,d,this.id,{spd:6,dmg:90,w:70,h:40,col:'#ffcc00',glow:'#ffee88',type:'e',life:95}))}
   }
   _jump(fwd,bck){
     this.vy=JV;this.y=FLOOR-1;
@@ -805,7 +885,7 @@ class Fighter{
   }
 
   // ── Tick ──
-  tick(opp,pts){
+  tick(opp,pts){this._opp=opp;
     this.sT++;
     if(this.hf>0)this.hf--;if(this.inv>0)this.inv--;
     if(this.cbT>0)this.cbT--;else if(this.cb>0){this.cb=0;this.cbdmg=0}
@@ -833,7 +913,14 @@ class Fighter{
       case S.SP1:
         if(this.cn==='KIRA'&&this.sT<=18)this.vx=this.fr?14:-14;else this.vx*=0.7;
         if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
-      case S.SP2:if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
+      case S.SP2:
+        // ZERO teleport: at frame 6, jump behind opponent
+        if(this.cn==='ZERO'&&this.sT===6&&this._opp){
+          const d=this.fr?1:-1;
+          this.x=this._opp.x-d*80;
+          this.inv=20;
+        }
+        if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
       case S.SP3:
         if(this.cn==='RYOKEN'&&this.sT<12)this.vx=this.fr?9:-9;else if(this.sT>12)this.vx*=0.65;
         if(m&&this.sT>=m.su+m.ac+m.re&&this.grnd)this.go(S.IDLE);break;
@@ -999,8 +1086,10 @@ class Fighter{
     // Neck
     ctx.fillStyle='#c08860';ctx.beginPath();rr(ctx,-5,2,10,8,2);ctx.fill();
     // Draw character-specific head
-    if(this.cn==='RYOKEN') this._headRyoken(ctx,C,ghost,T);
-    else                   this._headKira(ctx,C,ghost,T);
+    if(this.cn==='RYOKEN')      this._headRyoken(ctx,C,ghost,T);
+    else if(this.cn==='KIRA')  this._headKira(ctx,C,ghost,T);
+    else if(this.cn==='ZERO')  this._headZ(ctx,C,ghost,T,d);
+    else                       this._headV(ctx,C,ghost,T,d);
     ctx.restore();
 
     ctx.restore(); // main
@@ -1387,7 +1476,6 @@ class Game{
       div.innerHTML=`<div style="font-family:Impact;font-size:22px;color:${C.col};text-shadow:0 0 8px ${C.glow};margin-bottom:4px">${C.name}</div><div style="font-size:9px;color:${C.glow};margin-bottom:8px;text-align:center">${C.sub}</div><div style="font-size:9px;color:#aaa;text-align:left;line-height:1.6;width:100%;margin-bottom:8px">${(C.desc||[]).map(d=>'<div>• '+d+'</div>').join('')}</div><div style="font-size:9px;color:#555;margin-bottom:10px">HP: ${C.hp}</div><button style="width:100%;padding:10px 0;border-radius:20px;border:none;background:${C.col};color:#000;font-family:Impact;font-size:14px;cursor:pointer">CHOISIR</button>`;
       div.querySelector('button').onclick=()=>{
         if(this._multiMode){
-          // MULTI: pick char, send to opponent, wait
           _mp.myChar=i;
           if(_mp.conn)_mp.conn.send({type:'charsel',char:i});
           _mp.localReady=true;
@@ -1395,12 +1483,17 @@ class Game{
           _showWaitingForOpponent();
           if(_mp.remoteReady)_launchMulti();
         } else if(phase===0){
-          this._p1sel=i;this._showCS(1);
+          this._p1sel=i;
+          // Flash selection
+          div.style.boxShadow='0 0 30px '+C.col;
+          setTimeout(()=>this._showCS(1),150);
         } else {
           this._p2sel=i;
           const e=document.getElementById('charsel');if(e)e.style.display='none';
           this._buildWith(ckeys[this._p1sel||0],ckeys[this._p2sel||1]);
-          this._reset();this.state='INTRO';this.introF=160;
+          this._reset();
+          this.round=1;this.p1w=0;this.p2w=0;
+          this.state='INTRO';this.introF=160;
         }
       };
       cards.appendChild(div);
@@ -1506,6 +1599,8 @@ class Game{
     f.go(S.SP3);const d=f.fr?1:-1;
     if(f.cn==='KIRA')f.projs.push(new Proj(f.x+d*30,f.y-64,d,f.id,{spd:5.5,dmg:70,w:52,h:52,col:'#ff5522',glow:'#fa8',type:'f',life:90}));
     else if(f.cn==='RYOKEN'){f.vx=d*9}
+    else if(f.cn==='ZERO'){for(let i=0;i<3;i++)f.projs.push(new Proj(f.x+d*30,f.y-60-i*12,d,f.id,{spd:9+i*2,dmg:42,w:24,h:24,col:'#88ddff',glow:'#ccffff',type:'i',life:70}))}
+    else if(f.cn==='VEGA'){f.projs.push(new Proj(f.x+d*30,f.y-30,d,f.id,{spd:6,dmg:90,w:70,h:40,col:'#ffcc00',glow:'#ffee88',type:'e',life:95}))}
   }
   _endRound(){
     if(this.state!=='FIGHT')return;
@@ -1595,13 +1690,6 @@ class Game{
   _intro(ctx){
     const p=1-this.introF/160;
     ctx.fillStyle='rgba(1,0,14,.55)';ctx.fillRect(0,0,W,H);
-    const a=Math.min(1,p*2.8),os=Math.max(0,1-p*2)*80;
-    ctx.save();ctx.globalAlpha=a;
-    ctx.font=`bold 32px 'Courier New',monospace`;
-    ctx.textAlign='left';ctx.fillStyle=this.p1.C.col;ctx.shadowBlur=16;ctx.shadowColor=this.p1.C.glow;
-    ctx.fillText(this.p1.C.name,55-os,H-50);
-    ctx.textAlign='right';ctx.fillStyle=this.p2.C.col;ctx.shadowColor=this.p2.C.glow;
-    ctx.fillText(this.p2.C.name,W-55+os,H-50);ctx.restore();
     if(this.introF<55){
       const ra=Math.min(1,(55-this.introF)/18);
       ctx.save();ctx.globalAlpha=ra;ctx.textAlign='center';
@@ -1641,69 +1729,7 @@ function _roomCode(){
 }
 function _customCode(v){return 'NC-USER-'+v.toUpperCase().replace(/[^A-Z0-9]/g,'')}
 
-function _startMatchmaking(){
-  const overlay=document.getElementById('matchmaking');
-  overlay.style.display='flex';
-  _mp.searching=true;
-  _mp.connected=false;
-  // Setup ring canvas
-  const rc=document.getElementById('mm-ring');
-  _mp.ringCtx=rc.getContext('2d');
-  _mp.timeLeft=10;
-  _drawRing(10,10);
-  _setStatus('Recherche en cours...');
-  // Cleanup old peer
-  if(_mp.peer){try{_mp.peer.destroy()}catch(e){}}
-  // Try auto-match slot
-  const roomId=_roomCode();
-  _tryHostOrJoin(roomId);
-  // Timer
-  _mp.timerInt=setInterval(()=>{
-    _mp.timeLeft--;
-    _drawRing(_mp.timeLeft,10);
-    document.getElementById('mm-timer').textContent=_mp.timeLeft;
-    if(_mp.timeLeft<=0&&!_mp.connected){
-      clearInterval(_mp.timerInt);
-      _setStatus('Aucun joueur trouvé. En attente...');
-      // Show room code to share
-      const codeEl=document.getElementById('mm-code');
-      const codeVal=document.getElementById('mm-code-val');
-      if(codeEl){codeEl.style.display='block'}
-      if(codeVal){codeVal.textContent=roomId.replace('NC-','')}
-      document.getElementById('mm-timer').textContent='∞';
-    }
-  },1000);
-  // Cancel & join buttons
-  document.getElementById('mm-cancel').onclick=()=>_cancelMatchmaking();
-  document.getElementById('mm-join').onclick=()=>{
-    const v=document.getElementById('mm-input').value.trim();
-    if(v.length>=2){
-      if(_mp.peer){try{_mp.peer.destroy()}catch(e){}}
-      _mp.timeLeft=30;
-      _tryJoinCode(_customCode(v));
-    }
-  };
-}
 
-function _tryHostOrJoin(roomId){
-  // Try to be host first
-  _setStatus('Connexion au serveur...');
-  const peer=new Peer(roomId,{debug:0});
-  _mp.peer=peer;
-  peer.on('open',id=>{
-    _mp.isHost=true;
-    _setStatus("En attente d'un adversaire...");
-    peer.on('connection',conn=>{_onConnect(conn,true)});
-  });
-  peer.on('error',err=>{
-    // ID taken = someone is already waiting, connect to them
-    if(err.type==='unavailable-id'||err.type==='peer-unavailable'){
-      _tryJoinCode(roomId);
-    } else {
-      _setStatus('Erreur: '+err.type);
-    }
-  });
-}
 
 function _tryJoinCode(roomId){
   _setStatus("onnexion à l'adversaire...'");
@@ -1717,41 +1743,7 @@ function _tryJoinCode(roomId){
   peer.on('error',e=>_setStatus('Erreur connexion: '+e.type));
 }
 
-function _onConnect(conn,isHost){
-  if(_mp.connected)return;
-  clearInterval(_mp.timerInt);
-  _mp.conn=conn;_mp.isHost=isHost;_mp.connected=true;_mp.searching=false;
-  document.getElementById('mm-timer').textContent='✓';
-  document.getElementById('mm-code').style.display='none';
-  const foundEl=document.getElementById('mm-found');
-  foundEl.style.display='block';
-  foundEl.textContent=isHost?'ADVERSAIRE TROUVÉ !':'CONNECTÉ !';
-  _setStatus(isHost?'Tu joues en BLEU (P1)':'Tu joues en ROUGE (P2)');
-  conn.on('data',_onRemoteData);
-  conn.on('close',()=>_onDisconnect());
-  // Flash then start char select
-  setTimeout(()=>{
-    document.getElementById('matchmaking').style.display='none';
-    // Go to char select, not directly to game
-    _startMultiGame();
-  },1800);
-}
 
-function _onRemoteData(data){
-  if(data.type==='charsel'){
-    _mp.oppChar=data.char;
-    _mp.remoteReady=true;
-    if(_mp.localReady){
-      _launchMulti();
-    } else {
-      // Update VS display if we're still on wait screen
-      _updateWaitVS&&_updateWaitVS();
-    }
-  }
-  if(data.type==='input'){
-    _mp.remoteInput=data.inp;
-  }
-}
 
 function _onDisconnect(){
   if(window._game){
@@ -1761,16 +1753,6 @@ function _onDisconnect(){
   alert('Adversaire déconnecté !');
 }
 
-function _startMultiGame(){
-  if(!window._game)return;
-  window._game._multiMode=true;
-  _mp.localReady=false;_mp.remoteReady=false;
-  // Hide everything else
-  ['matchmaking','charsel','mp-waiting','mainmenu'].forEach(id=>{
-    const e=document.getElementById(id);if(e)e.style.display='none';
-  });
-  _showMultiCharsel();
-}
 
 function _showMultiCharsel(){
   const el=document.getElementById('multi-charsel');
@@ -1843,52 +1825,7 @@ function _showWaitingForOpponent(){
   if(ring){const c=ring.getContext('2d');c.clearRect(0,0,120,120)}
 }
 
-function _launchMulti(){
-  const g=window._game;if(!g)return;
-  const ckeys=Object.keys(CHARS);
-  const host=_mp.isHost;
-  const p1char=host?ckeys[_mp.myChar]:ckeys[_mp.oppChar];
-  const p2char=host?ckeys[_mp.oppChar]:ckeys[_mp.myChar];
-  _updateMpVsOpp();
-  // Launch after brief VS display
-  const waitChars=document.getElementById('mp-wait-chars');
-  const opp=CHARS[host?ckeys[_mp.oppChar]:ckeys[_mp.myChar]];
-  if(waitChars&&opp){
-    waitChars.innerHTML=`
-      <div style="text-align:center">
-        <div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">TOI</div>
-        <div style="font-family:Impact;font-size:22px;color:${CHARS[host?ckeys[_mp.myChar]:ckeys[_mp.oppChar]].col}">${CHARS[host?ckeys[_mp.myChar]:ckeys[_mp.oppChar]].name}</div>
-      </div>
-      <div style="font-size:28px;color:#22ff88;align-self:center">VS</div>
-      <div style="text-align:center">
-        <div style="font-size:10px;color:#555;letter-spacing:2px;margin-bottom:6px">ADVERSAIRE</div>
-        <div style="font-family:Impact;font-size:22px;color:${opp.col};text-shadow:0 0 10px ${opp.glow}">${opp.name}</div>
-      </div>`;
-    // Update status text
-    const status=document.querySelector('#mp-waiting div:nth-child(2)');
-    if(status)status.textContent='Adversaire prêt ! Lancement...';
-    // Remove spinner
-    const spinner=document.querySelector('#mp-waiting div:nth-child(3)');
-    if(spinner)spinner.style.display='none';
-  }
-  // Launch after brief VS display
-  setTimeout(()=>{
-    ['matchmaking','charsel','mp-waiting','multi-charsel','mp-vs','mainmenu'].forEach(id=>{
-      const e=document.getElementById(id);if(e)e.style.display='none';
-    });
-    g._buildWith(p1char,p2char);g._reset();
-    g._multiMode=true;g._multiIsHost=host;
-    g.state='INTRO';g.introF=160;
-  },2000);
-}
 
-function _cancelMatchmaking(){
-  clearInterval(_mp.timerInt);
-  if(_mp.peer){try{_mp.peer.destroy()}catch(e){}}
-  _mp.searching=false;_mp.connected=false;
-  document.getElementById('matchmaking').style.display='none';
-  _showMainMenu();
-}
 
 function _setStatus(txt){const e=document.getElementById('mm-status');if(e)e.textContent=txt}
 
@@ -1920,7 +1857,10 @@ function _getRemoteInput(){return _mp.remoteInput||{}}
 // Global menu functions
 function _showMainMenu(){const e=document.getElementById('mainmenu');if(e)e.style.display='flex'}
 function _hideMainMenu(){const e=document.getElementById('mainmenu');if(e)e.style.display='none'}
-function _showCharSel(p){_hideMainMenu();if(window._game)window._game._showCS(p)}
+function _showCharSel(p){
+  _hideMainMenu();
+  if(window._game){window._game._multiMode=false;window._game._showCS(p)}
+}
 function _initMenu(){
   const play=document.getElementById('mm-play');
   if(play)play.addEventListener('click',()=>_showCharSel(0));
