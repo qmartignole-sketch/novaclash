@@ -57,7 +57,7 @@ OCTYPE html>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:'Courier New',monospace}
 body{display:flex;justify-content:center;align-items:center}
-canvas{display:block;image-rendering:pixelated;touch-action:none}
+canvas{display:block;image-rendering:pixelated;touch-action:none;position:relative;z-index:1}
 .mm-btn{width:100%;padding:16px 20px;border-radius:10px;font-family:Impact,sans-serif;font-size:20px;letter-spacing:2px;cursor:pointer;text-align:left;transition:transform .12s,box-shadow .12s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .mm-btn:active{transform:scale(.97)}
 .mm-btn:hover{box-shadow:0 0 20px rgba(100,100,255,.3)}
@@ -67,7 +67,7 @@ canvas{display:block;image-rendering:pixelated;touch-action:none}
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
-<div id="mainmenu" style="display:flex;position:fixed;inset:0;background:linear-gradient(160deg,#04000f 0%,#08001a 50%,#0c0028 100%);z-index:998;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace">
+<div id="mainmenu" style="display:flex;position:fixed;inset:0;background:linear-gradient(160deg,#04000f 0%,#08001a 50%,#0c0028 100%);z-index:9999;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace">
   <!-- Title -->
   <div style="text-align:center;margin-bottom:40px">
     <div id="mm-title" style="font-family:Impact,sans-serif;font-size:clamp(42px,10vw,80px);letter-spacing:6px;background:linear-gradient(90deg,#2ee8ff,#fff,#ff5522);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 24px rgba(100,160,255,.5))">NOVA CLASH</div>
@@ -116,7 +116,7 @@ canvas{display:block;image-rendering:pixelated;touch-action:none}
   <!-- Version -->
   <div style="position:absolute;bottom:14px;color:#2a1850;font-size:10px;letter-spacing:2px">NOVA CLASH v2.0 · HTML5</div>
 </div>
-<div id="matchmaking" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#020010,#04001a);z-index:997;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;text-align:center">
+<div id="matchmaking" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#020010,#04001a);z-index:9999;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;text-align:center">
   <div style="font-family:Impact,sans-serif;font-size:32px;color:#22ff88;text-shadow:0 0 20px #22ff88;margin-bottom:8px">🌐 MULTIJOUEUR</div>
   <div id="mm-status" style="color:#aaa;font-size:13px;margin-bottom:28px">Connexion...</div>
   <!-- Timer ring -->
@@ -138,19 +138,31 @@ canvas{display:block;image-rendering:pixelated;touch-action:none}
   <button id="mm-cancel" style="margin-top:20px;padding:10px 24px;border-radius:8px;border:1px solid #ff444466;background:rgba(20,0,0,.8);color:#ff6666;font-family:'Courier New';font-size:12px;cursor:pointer">ANNULER</button>
 </div>
 
-<div id="multi-wait" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#030010,#05001a);z-index:1000;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;text-align:center">
+<div id="multi-wait" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#030010,#05001a);z-index:9999;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;text-align:center">
   <div style="font-family:Impact;font-size:26px;color:#22ff88;text-shadow:0 0 16px #22ff88;margin-bottom:12px">EN ATTENTE...</div>
   <div id="mw-status" style="color:#aaa;font-size:13px;margin-bottom:28px">L adversaire choisit son personnage</div>
   <div style="width:50px;height:50px;border:3px solid #22ff8822;border-top-color:#22ff88;border-radius:50%;animation:mw-spin 1s linear infinite;margin-bottom:28px"></div>
   <div id="mw-vs" style="display:flex;gap:32px;align-items:center"></div>
   <style>@keyframes mw-spin{to{transform:rotate(360deg)}}</style>
 </div>
-<div id="multi-charsel" style="display:none;position:fixed;inset:0;background:#020010;z-index:996;flex-direction:column;align-items:center;padding:20px;overflow-y:auto;font-family:'Courier New',monospace">
+<div id="charsel" style="display:none;position:fixed;inset:0;background:#030010;z-index:9999;overflow-y:auto;font-family:'Courier New',monospace">
+  <h2 id="cs-title" style="text-align:center;color:#fff;font:bold 24px Impact,sans-serif;padding:18px 0 2px;margin:0"></h2>
+  <p id="cs-sub" style="text-align:center;font-size:12px;margin:0 0 4px"></p>
+  <p id="cs-p1" style="text-align:center;font-size:12px;margin:0 0 12px;display:none"></p>
+  <div id="cs-cards" style="display:flex;flex-wrap:wrap;justify-content:center;gap:14px;padding:10px 14px 24px"></div>
+</div>
+<div id="charsel" style="display:none;position:fixed;inset:0;background:#030010;z-index:9999;overflow-y:auto;font-family:'Courier New',monospace">
+  <h2 id="cs-title" style="text-align:center;color:#fff;font:bold 24px Impact,sans-serif;padding:18px 0 2px;margin:0"></h2>
+  <p id="cs-sub" style="text-align:center;font-size:12px;margin:0 0 4px"></p>
+  <p id="cs-p1" style="text-align:center;font-size:12px;margin:0 0 12px;display:none"></p>
+  <div id="cs-cards" style="display:flex;flex-wrap:wrap;justify-content:center;gap:14px;padding:10px 14px 24px"></div>
+</div>
+<div id="multi-charsel" style="display:none;position:fixed;inset:0;background:#020010;z-index:9999;flex-direction:column;align-items:center;padding:20px;overflow-y:auto;font-family:'Courier New',monospace">
   <div style="font-family:Impact,sans-serif;font-size:26px;color:#22ff88;text-shadow:0 0 14px #22ff88;text-align:center;margin-bottom:4px">🌐 MULTIJOUEUR</div>
   <div id="mcs-title" style="color:#aaa;font-size:13px;text-align:center;margin-bottom:18px">Choisis ton personnage</div>
   <div id="mcs-cards" style="display:flex;flex-wrap:wrap;justify-content:center;gap:14px;width:100%;max-width:540px"></div>
 </div>
-<div id="mp-vs" style="display:none;position:fixed;inset:0;background:#020010;z-index:995;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;text-align:center">
+<div id="mp-vs" style="display:none;position:fixed;inset:0;background:#020010;z-index:9999;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;text-align:center">
   <div style="font-family:Impact,sans-serif;font-size:22px;color:#aaa;margin-bottom:20px">ADVERSAIRES</div>
   <div style="display:flex;align-items:center;gap:32px;margin-bottom:28px">
     <div id="mpvs-p1" style="text-align:center"></div>
@@ -159,7 +171,7 @@ canvas{display:block;image-rendering:pixelated;touch-action:none}
   </div>
   <div id="mpvs-status" style="color:#666;font-size:13px">En attente...</div>
 </div>
-<canvas id="c"></canvas>
+<canvas id="c" style="display:block"></canvas>
 <div id="tc" style="position:fixed;bottom:0;left:0;right:0;height:180px;pointer-events:none;z-index:100;display:none">
   <!-- Gauche -->
   <div style="position:absolute;left:10px;bottom:10px;pointer-events:all">
@@ -1949,6 +1961,19 @@ function _syncMultiInput(inp){
 function _getRemoteInput(){return _mp.remoteInput||{}}
 
 // Global menu functions
+
+window.addEventListener('load',()=>{
+  window._game=new Game();
+  window._mp=_mp;
+  _initMenu();
+  _showMainMenu();
+  // Fullscreen on first touch
+  const goFS=()=>{const el=document.documentElement,r=el.requestFullscreen||el.webkitRequestFullscreen;if(r)r.call(el).catch(()=>{})};
+  document.addEventListener('touchstart',goFS,{once:true});
+  // Wake lock
+  if('wakeLock' in navigator)navigator.wakeLock.request('screen').catch(()=>{});
+});
+
 </script>
 <script>
 // Désinstalle tous les anciens service workers
