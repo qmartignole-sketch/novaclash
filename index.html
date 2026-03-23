@@ -1597,9 +1597,14 @@ class Game{
         } else {
           this._p2sel=i;
           const e=document.getElementById('charsel');if(e)e.style.display='none';
-          this._buildWith(ckeys[this._p1sel??0],ckeys[this._p2sel??1]);
+          const c1=ckeys[this._p1sel??0], c2=ckeys[this._p2sel??1];
+          console.log('Solo launch: p1='+c1+' p2='+c2);
+          this._buildWith(c1,c2);
           this._reset();
           this.round=1;this.p1w=0;this.p2w=0;
+          // Hide ALL overlays
+          document.querySelectorAll('#charsel,#mainmenu,#multi-charsel,#matchmaking,#mp-waiting,#multi-wait').forEach(el=>el.style.display='none');
+          console.log('State set to INTRO');
           this.state='INTRO';this.introF=180;
         }
       };
@@ -1609,6 +1614,11 @@ class Game{
   _build(){
     this.p1=new Fighter(1,'RYOKEN',240,true,true);
     this.p2=new Fighter(2,'KIRA',720,false,false);
+    this.ai=new AI(this.p2);
+  }
+  _buildWith(cn1,cn2){
+    this.p1=new Fighter(1,cn1,240,true,true);
+    this.p2=new Fighter(2,cn2,720,false,false);
     this.ai=new AI(this.p2);
   }
   _reset(){
@@ -1725,13 +1735,16 @@ class Game{
     ctx.save();this.sfx.apply(ctx);
     this.stage.draw(ctx);
     // Super aura
-    for(const f of[this.p1,this.p2]) if(f.st===S.SUP) this._superAura(f);
-    // Fighters
-    this.p1.draw(ctx,this.pts,this.T);this.p2.draw(ctx,this.pts,this.T);
+    if(this.state!=='MENU')for(const f of[this.p1,this.p2]) if(f&&f.st===S.SUP) this._superAura(f);
+    // Fighters (only draw if in combat)
+    if(this.state!=='MENU'){
+      if(this.p1)this.p1.draw(ctx,this.pts,this.T);
+      if(this.p2)this.p2.draw(ctx,this.pts,this.T);
+    }
     this.pts.draw(ctx);
     ctx.restore();
     this.sfx.drawFlash(ctx);
-    if(this.state!=='MENU') this.ui.draw(ctx,this.p1,this.p2,this.timer,this.p1w,this.p2w,this.mr,this.T);
+    if(this.state!=='MENU'&&this.state!=='INTRO') this.ui.draw(ctx,this.p1,this.p2,this.timer,this.p1w,this.p2w,this.mr,this.T);
     if(this.annF>0){const a=this.annF>30?1:this.annF/30;ctx.save();ctx.globalAlpha=a;this.ui.bigText(ctx,this.annT,W/2,H/2+24,this.annC);ctx.restore()}
     if(this._st>0){this._st--;const sa=Math.min(1,this._st/10);ctx.save();ctx.globalAlpha=sa;ctx.textAlign='center';ctx.font=`bold 30px Impact,sans-serif`;ctx.strokeStyle='#000';ctx.lineWidth=5;ctx.strokeText(this._sl||'',W/2,155);ctx.fillStyle=this._sc||'#fff';ctx.shadowBlur=16;ctx.shadowColor=this._sc||'#fff';ctx.fillText(this._sl||'',W/2,155);ctx.restore()}
     switch(this.state){
@@ -1776,63 +1789,65 @@ class Game{
   }
 
   _intro(ctx){
-    // Dark overlay
-    ctx.fillStyle='rgba(1,0,14,.75)';ctx.fillRect(0,0,W,H);
-    const total=180; // 3 seconds at 60fps
-    const elapsed=total-this.introF;
-    const prog=Math.min(1,elapsed/total);
-    // VS banner — slides in from sides
-    const slide=Math.max(0,1-elapsed/30);
-    ctx.save();
-    // P1 name — slides from left
-    ctx.globalAlpha=Math.min(1,elapsed/20);
-    ctx.font=`bold 38px Impact,sans-serif`;
-    // P1 — slides in from left (actual chosen char name)
+    ctx.fillStyle='rgba(1,0,14,.82)';ctx.fillRect(0,0,W,H);
+    const total=180,elapsed=total-this.introF;
+    const slide=Math.max(0,1-elapsed/28);
+    const fadeIn=a=>Math.min(1,elapsed/(a||20));
+
+    // Get actual chosen char data
     const p1n=this.p1?.C?.name||'P1', p1c=this.p1?.C?.col||'#2ee8ff', p1g=this.p1?.C?.glow||'#9ef', p1s=this.p1?.C?.sub||'';
     const p2n=this.p2?.C?.name||'P2', p2c=this.p2?.C?.col||'#ff5522', p2g=this.p2?.C?.glow||'#fa8', p2s=this.p2?.C?.sub||'';
+
+    ctx.save();
+
+    // ── P1 block — slides from left ──
+    ctx.globalAlpha=fadeIn(18);
+    const p1x=80-slide*180;
     ctx.textAlign='left';
-    ctx.fillStyle=p1c;ctx.shadowBlur=16;ctx.shadowColor=p1g;
-    ctx.strokeStyle='#000';ctx.lineWidth=5;
-    const p1x=60-slide*200;
-    ctx.strokeText(p1n,p1x,H/2-20);ctx.fillText(p1n,p1x,H/2-20);
-    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=p1g;ctx.shadowBlur=0;
-    ctx.fillText(p1s,p1x,H/2+8);
-    // P2 — slides in from right
+    ctx.font=`bold 44px Impact,sans-serif`;
+    ctx.strokeStyle='#000';ctx.lineWidth=6;
+    ctx.shadowBlur=0;ctx.strokeText(p1n,p1x,H/2-18);
+    ctx.fillStyle=p1c;ctx.shadowBlur=18;ctx.shadowColor=p1g;ctx.fillText(p1n,p1x,H/2-18);
+    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=p1g;ctx.shadowBlur=0;ctx.fillText(p1s,p1x,H/2+8);
+
+    // ── P2 block — slides from right ──
+    const p2x=W-80+slide*180;
     ctx.textAlign='right';
-    ctx.fillStyle=p2c;ctx.shadowBlur=16;ctx.shadowColor=p2g;
-    ctx.strokeStyle='#000';ctx.lineWidth=5;
-    const p2x=W-60+slide*200;
-    ctx.font=`bold 38px Impact,sans-serif`;
-    ctx.strokeText(p2n,p2x,H/2-20);ctx.fillText(p2n,p2x,H/2-20);
-    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=p2g;ctx.shadowBlur=0;
-    ctx.fillText(p2s,p2x,H/2+8);
-    // VS in center — appears after slide
-    if(elapsed>15){
-      ctx.globalAlpha=Math.min(1,(elapsed-15)/10);
-      ctx.textAlign='center';ctx.font=`bold 52px Impact,sans-serif`;
-      ctx.strokeStyle='#000';ctx.lineWidth=7;ctx.strokeText('VS',W/2,H/2-10);
-      ctx.fillStyle='#fff';ctx.shadowBlur=22;ctx.shadowColor='#8040ff';ctx.fillText('VS',W/2,H/2-10);
+    ctx.font=`bold 44px Impact,sans-serif`;
+    ctx.strokeStyle='#000';ctx.lineWidth=6;
+    ctx.shadowBlur=0;ctx.strokeText(p2n,p2x,H/2-18);
+    ctx.fillStyle=p2c;ctx.shadowBlur=18;ctx.shadowColor=p2g;ctx.fillText(p2n,p2x,H/2-18);
+    ctx.font=`12px 'Courier New',monospace`;ctx.fillStyle=p2g;ctx.shadowBlur=0;ctx.fillText(p2s,p2x,H/2+8);
+
+    // ── VS ──
+    if(elapsed>16){
+      ctx.globalAlpha=fadeIn(12)*(0.5+Math.sin(this.T*8)*.5)*0.3+fadeIn(12)*0.7;
+      ctx.textAlign='center';ctx.font=`bold 58px Impact,sans-serif`;
+      ctx.strokeStyle='#000';ctx.lineWidth=7;ctx.shadowBlur=0;ctx.strokeText('VS',W/2,H/2-12);
+      ctx.fillStyle='#fff';ctx.shadowBlur=24;ctx.shadowColor='#8040ff';ctx.fillText('VS',W/2,H/2-12);
     }
-    // Round indicator
-    if(elapsed>25){
-      ctx.globalAlpha=Math.min(1,(elapsed-25)/12);
-      ctx.textAlign='center';ctx.font=`14px 'Courier New',monospace`;
-      ctx.fillStyle='#7060a0';ctx.shadowBlur=0;
-      ctx.fillText(`ROUND ${this.round}`,W/2,H/2+38);
+
+    // ── Matchup text eg "ZERO vs VEGA" ──
+    if(elapsed>30){
+      ctx.globalAlpha=Math.min(1,(elapsed-30)/15);
+      ctx.textAlign='center';ctx.font=`13px 'Courier New',monospace`;
+      ctx.fillStyle='rgba(150,130,200,.7)';ctx.shadowBlur=0;
+      ctx.fillText(p1n+' vs '+p2n+' — Round '+this.round,W/2,H/2+42);
     }
-    // 3-2-1 countdown
+
+    // ── 3-2-1 countdown ──
     const secLeft=Math.ceil(this.introF/60);
-    if(secLeft>=1&&secLeft<=3&&elapsed>20){
-      const frameInSec=this.introF%60;
-      const scale=1+(1-frameInSec/60)*0.4; // pulses on each second
-      ctx.globalAlpha=0.9;ctx.textAlign='center';
-      ctx.save();ctx.translate(W/2,H/2+90);ctx.scale(scale,scale);
-      ctx.font=`bold 72px Impact,sans-serif`;
-      const col=secLeft===1?'#ff4040':secLeft===2?'#ffaa00':'#22ff88';
-      ctx.strokeStyle='#000';ctx.lineWidth=8;ctx.strokeText(secLeft,0,0);
-      ctx.fillStyle=col;ctx.shadowBlur=24;ctx.shadowColor=col;ctx.fillText(secLeft,0,0);
+    if(secLeft>=1&&secLeft<=3&&elapsed>22){
+      const pulse=1+(1-(this.introF%60)/60)*0.45;
+      const col=secLeft===1?'#ff3030':secLeft===2?'#ffaa00':'#22ff88';
+      ctx.globalAlpha=0.92;ctx.textAlign='center';
+      ctx.save();ctx.translate(W/2,H/2+100);ctx.scale(pulse,pulse);
+      ctx.font=`bold 80px Impact,sans-serif`;
+      ctx.strokeStyle='#000';ctx.lineWidth=9;ctx.shadowBlur=0;ctx.strokeText(secLeft,0,0);
+      ctx.fillStyle=col;ctx.shadowBlur=28;ctx.shadowColor=col;ctx.fillText(secLeft,0,0);
       ctx.restore();
     }
+
     ctx.restore();
   }
   _matchEnd(ctx){
