@@ -1565,9 +1565,10 @@ class Game{
     this._build();requestAnimationFrame(ts=>this._loop(ts));
   }
   _showCS(phase){
-    if(phase===0){this._p1sel=0;this._p2sel=1;} // reset defaults
-    const e=document.getElementById('charsel');if(e)e.style.display='block';
+    if(phase===0){this._p1sel=0;this._p2sel=1;}
     const el=document.getElementById('charsel');
+    if(!el)return;
+    el.style.display='block';
     const acol=phase===0?'#2ee8ff':'#ff5522';
     const title=document.getElementById('cs-title');
     const sub=document.getElementById('cs-sub');
@@ -1576,40 +1577,59 @@ class Game{
     if(title){title.textContent=phase===0?'CHOISIS TON PERSONNAGE':"CHOISIS L'ADVERSAIRE";title.style.color=acol}
     if(sub){sub.textContent='Appuie sur CHOISIR';sub.style.color=acol}
     const ckeys=Object.keys(CHARS);
-    if(p1el){if(phase===1){p1el.style.display='block';p1el.textContent='Ton perso : '+CHARS[ckeys[this._p1sel||0]].name;p1el.style.color=CHARS[ckeys[this._p1sel||0]].col}else p1el.style.display='none'}
-    if(cards){cards.innerHTML='';ckeys.forEach((cn,i)=>{
-      const C=CHARS[cn];const div=document.createElement('div');
-      div.style.cssText=`width:148px;border-radius:12px;border:2px solid ${C.col};background:rgba(6,0,24,.97);color:#fff;display:flex;flex-direction:column;align-items:center;padding:14px 10px 12px;box-sizing:border-box`;
-      div.innerHTML=`<div style="font-family:Impact;font-size:22px;color:${C.col};text-shadow:0 0 8px ${C.glow};margin-bottom:4px">${C.name}</div><div style="font-size:9px;color:${C.glow};margin-bottom:8px;text-align:center">${C.sub}</div><div style="font-size:9px;color:#aaa;text-align:left;line-height:1.6;width:100%;margin-bottom:8px">${(C.desc||[]).map(d=>'<div>• '+d+'</div>').join('')}</div><div style="font-size:9px;color:#555;margin-bottom:10px">HP: ${C.hp}</div><button style="width:100%;padding:10px 0;border-radius:20px;border:none;background:${C.col};color:#000;font-family:Impact;font-size:14px;cursor:pointer">CHOISIR</button>`;
-      div.querySelector('button').onclick=()=>{
-        if(this._multiMode){
+    if(p1el){
+      if(phase===1){
+        p1el.style.display='block';
+        p1el.textContent='Ton perso : '+CHARS[ckeys[this._p1sel]].name;
+        p1el.style.color=CHARS[ckeys[this._p1sel]].col;
+      } else {
+        p1el.style.display='none';
+      }
+    }
+    if(!cards)return;
+    cards.innerHTML='';
+    const game=this; // capture explicite
+    ckeys.forEach(function(cn,i){
+      const C=CHARS[cn];
+      const div=document.createElement('div');
+      div.style.cssText='width:148px;border-radius:12px;border:2px solid '+C.col+';background:rgba(6,0,24,.97);color:#fff;display:flex;flex-direction:column;align-items:center;padding:14px 10px 12px;box-sizing:border-box';
+      div.innerHTML='<div style="font-family:Impact;font-size:22px;color:'+C.col+';text-shadow:0 0 8px '+C.glow+';margin-bottom:4px">'+C.name+'</div>'
+        +'<div style="font-size:9px;color:'+C.glow+';margin-bottom:8px;text-align:center">'+C.sub+'</div>'
+        +'<div style="font-size:9px;color:#aaa;text-align:left;line-height:1.7;width:100%;margin-bottom:8px">'+(C.desc||[]).map(function(d){return'<div>• '+d+'</div>'}).join('')+'</div>'
+        +'<div style="font-size:9px;color:#555;margin-bottom:10px">HP: '+C.hp+'</div>'
+        +'<button style="width:100%;padding:10px 0;border-radius:20px;border:none;background:'+C.col+';color:#000;font-family:Impact;font-size:14px;cursor:pointer;letter-spacing:1px">CHOISIR</button>';
+      div.querySelector('button').addEventListener('click',function(){
+        if(game._multiMode){
           _mp.myChar=i;
           if(_mp.conn)_mp.conn.send({type:'charsel',char:i});
           _mp.localReady=true;
-          const e=document.getElementById('charsel');if(e)e.style.display='none';
+          document.getElementById('charsel').style.display='none';
           _showWaitingForOpponent();
           if(_mp.remoteReady)_launchMulti();
-        } else if(phase===0){
-          this._p1sel=i;
-          // Flash selection
-          div.style.boxShadow='0 0 30px '+C.col;
-          setTimeout(()=>this._showCS(1),150);
-        } else {
-          this._p2sel=i;
-          const e=document.getElementById('charsel');if(e)e.style.display='none';
-          const c1=ckeys[this._p1sel??0], c2=ckeys[this._p2sel??1];
-          console.log('Solo launch: p1='+c1+' p2='+c2);
-          this._buildWith(c1,c2);
-          this._reset();
-          this.round=1;this.p1w=0;this.p2w=0;
-          // Hide ALL overlays
-          document.querySelectorAll('#charsel,#mainmenu,#multi-charsel,#matchmaking,#mp-waiting,#multi-wait').forEach(el=>el.style.display='none');
-          console.log('State set to INTRO');
-          this.state='INTRO';this.introF=180;
+          return;
         }
-      };
+        if(phase===0){
+          game._p1sel=i;
+          div.style.boxShadow='0 0 28px '+C.col;
+          setTimeout(function(){game._showCS(1);},150);
+        } else {
+          game._p2sel=i;
+          // Cacher tous les overlays
+          ['charsel','mainmenu','multi-charsel','matchmaking','mp-waiting','multi-wait'].forEach(function(id){
+            var ov=document.getElementById(id);if(ov)ov.style.display='none';
+          });
+          // Construire et lancer
+          var c1=ckeys[game._p1sel];
+          var c2=ckeys[game._p2sel];
+          console.log('SOLO LAUNCH: '+c1+' vs '+c2);
+          game._buildWith(c1,c2);
+          game._reset();
+          game.round=1;game.p1w=0;game.p2w=0;
+          game.state='INTRO';game.introF=180;
+        }
+      });
       cards.appendChild(div);
-    });}
+    });
   }
   _build(){
     this.p1=new Fighter(1,'RYOKEN',240,true,true);
