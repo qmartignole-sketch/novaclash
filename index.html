@@ -1625,7 +1625,10 @@ class Game{
           game._buildWith(c1,c2);
           game._reset();
           game.round=1;game.p1w=0;game.p2w=0;
-          game.state='INTRO';game.introF=180;
+          game._multiMode=false;
+          console.log('LAUNCH: p1='+game.p1.cn+' p2='+game.p2.cn+' state->INTRO');
+          game.state='INTRO';
+          game.introF=180;
         }
       });
       cards.appendChild(div);
@@ -1752,6 +1755,8 @@ class Game{
   _draw(){
     const ctx=this.ctx;
     ctx.clearRect(0,0,W,H);
+    // En MENU: canvas transparent, l'overlay HTML gere tout
+    if(this.state==='MENU') return;
     ctx.save();this.sfx.apply(ctx);
     this.stage.draw(ctx);
     // Super aura
